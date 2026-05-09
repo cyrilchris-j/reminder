@@ -192,7 +192,7 @@ function NoteCards({ notes, viewMode, onAction, router }: {
           <motion.div key={note.id} layout initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.2, delay: i * 0.03 }}>
             <Card className="group relative cursor-pointer border-border/50 transition-all duration-300 hover:border-primary/20 hover:shadow-md hover:-translate-y-0.5 overflow-hidden"
               style={{ borderLeftColor: note.color !== "transparent" && note.color !== "#ffffff" ? note.color : undefined, borderLeftWidth: note.color !== "transparent" && note.color !== "#ffffff" ? 3 : undefined }}
-              onClick={() => router.push(`/dashboard/notes/${note.id}`)}>
+              onClick={() => router.push(`/dashboard/notes/view?id=${note.id}`)}>
               <div className="p-4">
                 <h3 className="font-semibold text-sm truncate pr-8">{note.title || "Untitled"}</h3>
                 <p className="mt-1.5 text-xs text-muted-foreground line-clamp-3">{note.plain_text?.slice(0, 150) || "Empty note"}</p>

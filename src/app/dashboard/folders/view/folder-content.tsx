@@ -4,7 +4,7 @@
 // ============================================
 
 import { useEffect, useState } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, StickyNote } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -17,8 +17,8 @@ import { useAuthState } from "react-firebase-hooks/auth";
 
 export default function FolderDetailPage() {
   const router = useRouter();
-  const params = useParams();
-  const folderId = params.id as string;
+  const searchParams = useSearchParams();
+  const folderId = searchParams.get("id") as string;
   const [user] = useAuthState(auth);
   const [folder, setFolder] = useState<Folder | null>(null);
   const [notes, setNotes] = useState<Note[]>([]);
@@ -80,7 +80,7 @@ export default function FolderDetailPage() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {notes.map(note => (
-            <Card key={note.id} className="cursor-pointer border-border/50 p-4 hover:shadow-md transition-all" onClick={() => router.push(`/dashboard/notes/${note.id}`)}>
+            <Card key={note.id} className="cursor-pointer border-border/50 p-4 hover:shadow-md transition-all" onClick={() => router.push(`/dashboard/notes/view?id=${note.id}`)}>
               <h3 className="font-semibold text-sm truncate">{note.title}</h3>
               <p className="mt-1 text-xs text-muted-foreground line-clamp-3">{note.plain_text?.slice(0, 120)}</p>
               <p className="mt-2 text-[10px] text-muted-foreground">{format(new Date(note.updated_at), "MMM d")}</p>

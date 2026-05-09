@@ -7,7 +7,7 @@ import { collection, getDoc, doc, addDoc, updateDoc } from "firebase/firestore";
 // ============================================
 
 import { useState, useEffect, useCallback } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Save, Loader2, Tag, Palette, Sparkles, Mic, MicOff, Download, FileText, FileJson, FileType, ListChecks, Wand2 } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useVoiceInput } from "@/hooks/use-voice-input";
@@ -27,8 +27,8 @@ import type { Note } from "@/types/database";
 
 export default function NoteDetailPage() {
   const router = useRouter();
-  const params = useParams();
-  const noteId = params.id as string;
+  const searchParams = useSearchParams();
+  const noteId = searchParams.get("id") as string;
 
   const [note, setNote] = useState<Note | null>(null);
   const [title, setTitle] = useState("");

@@ -80,7 +80,7 @@ export default function SearchPage() {
               <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2"><StickyNote className="h-3 w-3" />Notes ({notes.length})</h2>
               <div className="space-y-2">
                 {notes.map(n => (
-                  <Card key={n.id} className="cursor-pointer border-border/50 hover:border-primary/20 transition-all" onClick={() => router.push(`/dashboard/notes/${n.id}`)}>
+                  <Card key={n.id} className="cursor-pointer border-border/50 hover:border-primary/20 transition-all" onClick={() => router.push(`/dashboard/notes/view?id=${n.id}`)}>
                     <CardContent className="flex items-center gap-4 p-4">
                       <div className="rounded-lg bg-violet-500/10 p-2"><StickyNote className="h-4 w-4 text-violet-500" /></div>
                       <div className="flex-1 min-w-0">

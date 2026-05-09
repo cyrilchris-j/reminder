@@ -124,7 +124,7 @@ export default function FoldersPage() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {folders.map((folder, i) => (
             <motion.div key={folder.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
-              <Card className="group cursor-pointer border-border/50 transition-all hover:shadow-md hover:-translate-y-0.5" onClick={() => router.push(`/dashboard/folders/${folder.id}`)}>
+              <Card className="group cursor-pointer border-border/50 transition-all hover:shadow-md hover:-translate-y-0.5" onClick={() => router.push(`/dashboard/folders/view?id=${folder.id}`)}>
                 <CardContent className="p-5">
                   <div className="flex items-start justify-between">
                     <div className="rounded-xl p-2.5" style={{ backgroundColor: folder.color + "20" }}>

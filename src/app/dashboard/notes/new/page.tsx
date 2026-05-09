@@ -74,7 +74,7 @@ export default function NewNotePage() {
       });
 
       toast.success("Note saved!");
-      router.push(`/dashboard/notes/${docRef.id}`);
+      router.push(`/dashboard/notes/view?id=${docRef.id}`);
     } catch (error) {
       console.error(error);
       toast.error("Failed to save note");

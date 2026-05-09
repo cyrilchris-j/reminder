@@ -397,7 +397,7 @@ export default function DashboardPage() {
                 notes.slice(0, 4).map((note) => (
                   <div
                     key={note.id}
-                    onClick={() => router.push(`/dashboard/notes/${note.id}`)}
+                    onClick={() => router.push(`/dashboard/notes/view?id=${note.id}`)}
                     className="group cursor-pointer rounded-xl border border-transparent px-3 py-2.5 transition-all hover:bg-accent/50"
                     style={{
                       borderLeftColor: note.color !== "transparent" && note.color !== "#ffffff" ? note.color : undefined,
