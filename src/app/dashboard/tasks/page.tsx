@@ -50,17 +50,18 @@ export default function TasksPage() {
 
     try {
       const tasksRef = collection(db, "tasks");
-      const q = query(
-        tasksRef,
-        where("user_id", "==", user.uid),
-        where("is_deleted", "==", false),
-        orderBy("is_completed", "asc"),
-        orderBy("sort_order", "asc")
-      );
-
+      const q = query(tasksRef, where("user_id", "==", user.uid));
       const snapshot = await getDocs(q);
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setTasks((data as Task[]) || []);
+      const allTasks = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Task));
+      
+      // Filter and sort client-side
+      const filteredTasks = allTasks
+        .filter(t => !t.is_deleted)
+        .sort((a, b) => {
+          if (a.is_completed !== b.is_completed) return a.is_completed ? 1 : -1;
+          return (a.sort_order || 0) - (b.sort_order || 0);
+        });
+      setTasks(filteredTasks);
     } catch (error) {
       console.error("Error fetching tasks:", error);
       

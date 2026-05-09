@@ -81,60 +81,47 @@ export default function DashboardPage() {
       setUserName(authUser.displayName || "there");
 
       try {
-        // Get recent notes
+        // Get all items for the user and filter client-side to avoid index requirements
         const notesRef = collection(db, "notes");
-        const notesQuery = query(
-          notesRef,
-          where("user_id", "==", authUser.uid),
-          where("is_deleted", "==", false),
-          where("is_archived", "==", false),
-          orderBy("updated_at", "desc"),
-          limit(6)
-        );
+        const notesQuery = query(notesRef, where("user_id", "==", authUser.uid));
         const notesSnapshot = await getDocs(notesQuery);
-        const notesData = notesSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-        setNotes((notesData as Note[]) || []);
+        const allNotes = notesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Note[];
+        const filteredNotes = allNotes
+          .filter(n => !n.is_deleted && !n.is_archived)
+          .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
+          .slice(0, 6);
+        setNotes(filteredNotes);
 
-        // Get today's tasks
         const tasksRef = collection(db, "tasks");
-        const tasksQuery = query(
-          tasksRef,
-          where("user_id", "==", authUser.uid),
-          where("is_deleted", "==", false),
-          orderBy("sort_order", "asc"),
-          limit(10)
-        );
+        const tasksQuery = query(tasksRef, where("user_id", "==", authUser.uid));
         const tasksSnapshot = await getDocs(tasksQuery);
-        const tasksData = tasksSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-        setTasks((tasksData as Task[]) || []);
+        const allTasks = tasksSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Task[];
+        const filteredTasks = allTasks
+          .filter(t => !t.is_deleted)
+          .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+          .slice(0, 10);
+        setTasks(filteredTasks);
 
-        // Get upcoming reminders
         const remindersRef = collection(db, "reminders");
-        const remindersQuery = query(
-          remindersRef,
-          where("user_id", "==", authUser.uid),
-          where("is_active", "==", true),
-          where("remind_at", ">=", new Date().toISOString()),
-          orderBy("remind_at", "asc"),
-          limit(5)
-        );
+        const remindersQuery = query(remindersRef, where("user_id", "==", authUser.uid));
         const remindersSnapshot = await getDocs(remindersQuery);
-        const remindersData = remindersSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-
-        setReminders((remindersData as Reminder[]) || []);
+        const allReminders = remindersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Reminder[];
+        const filteredReminders = allReminders
+          .filter(r => r.is_active && new Date(r.remind_at) >= new Date())
+          .sort((a, b) => new Date(a.remind_at).getTime() - new Date(b.remind_at).getTime())
+          .slice(0, 5);
+        setReminders(filteredReminders);
       } catch (error) {
         console.error("Error fetching dashboard data:", error);
         
         // --- HACKATHON FALLBACK ---
-        // If Firestore permissions fail, show mock data for the demo
-        if (error instanceof Error && error.message.includes("permission")) {
-          setNotes([
-            { id: "mock-1", title: "Welcome to MindFlow", plain_text: "Start by creating your first note! This is a demo note.", updated_at: new Date().toISOString(), color: "#ddd6fe", tags: ["welcome"] } as any
-          ]);
-          setTasks([
-            { id: "mock-t1", title: "Complete your first task", is_completed: false, priority: "high", due_date: new Date().toISOString() } as any
-          ]);
-        }
+        // If Firestore fails, show mock data for the demo
+        setNotes([
+          { id: "mock-1", title: "Welcome to MindFlow", plain_text: "Start by creating your first note! This is a demo note.", updated_at: new Date().toISOString(), color: "#ddd6fe", tags: ["welcome"] } as any
+        ]);
+        setTasks([
+          { id: "mock-t1", title: "Complete your first task", is_completed: false, priority: "high", due_date: new Date().toISOString() } as any
+        ]);
       } finally {
         setLoading(false);
       }

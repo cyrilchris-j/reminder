@@ -35,24 +35,28 @@ export default function SearchPage() {
     // For this app, we'll fetch all non-deleted items and filter client-side.
     // In a real large-scale app, we'd use Algolia or ElasticSearch.
 
-    const notesRef = collection(db, "notes");
-    const notesSnapshot = await getDocs(query(notesRef, where("user_id", "==", user.uid), where("is_deleted", "==", false)));
-    const allNotes = notesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Note[];
-    const filteredNotes = allNotes.filter(n => 
-      n.title.toLowerCase().includes(q.toLowerCase()) || 
-      n.plain_text?.toLowerCase().includes(q.toLowerCase())
-    ).slice(0, 20);
+    try {
+      const notesRef = collection(db, "notes");
+      const notesSnapshot = await getDocs(query(notesRef, where("user_id", "==", user.uid), where("is_deleted", "==", false)));
+      const allNotes = notesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Note[];
+      const filteredNotes = allNotes.filter(n => 
+        n.title.toLowerCase().includes(q.toLowerCase()) || 
+        n.plain_text?.toLowerCase().includes(q.toLowerCase())
+      ).slice(0, 20);
 
-    const tasksRef = collection(db, "tasks");
-    const tasksSnapshot = await getDocs(query(tasksRef, where("user_id", "==", user.uid), where("is_deleted", "==", false)));
-    const allTasks = tasksSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Task[];
-    const filteredTasks = allTasks.filter(t => 
-      t.title.toLowerCase().includes(q.toLowerCase()) || 
-      t.description?.toLowerCase().includes(q.toLowerCase())
-    ).slice(0, 20);
+      const tasksRef = collection(db, "tasks");
+      const tasksSnapshot = await getDocs(query(tasksRef, where("user_id", "==", user.uid), where("is_deleted", "==", false)));
+      const allTasks = tasksSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Task[];
+      const filteredTasks = allTasks.filter(t => 
+        t.title.toLowerCase().includes(q.toLowerCase()) || 
+        t.description?.toLowerCase().includes(q.toLowerCase())
+      ).slice(0, 20);
 
-    setNotes(filteredNotes);
-    setTasks(filteredTasks);
+      setNotes(filteredNotes);
+      setTasks(filteredTasks);
+    } catch (error) {
+      console.error("Search error:", error);
+    }
   };
 
   return (

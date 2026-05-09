@@ -35,13 +35,12 @@ export default function FoldersPage() {
     if (!user) return;
     try {
       const foldersRef = collection(db, "folders");
-      const q = query(
-        foldersRef, 
-        where("user_id", "==", user.uid),
-        orderBy("created_at", "desc")
-      );
+      const q = query(foldersRef, where("user_id", "==", user.uid));
       const snapshot = await getDocs(q);
-      setFolders(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Folder)));
+      const allFolders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Folder));
+      
+      // Sort client-side
+      setFolders(allFolders.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
     } catch (error) {
       console.error(error);
     } finally {

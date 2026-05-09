@@ -40,18 +40,18 @@ export default function NotesPage() {
 
     try {
       const notesRef = collection(db, "notes");
-      const q = query(
-        notesRef,
-        where("user_id", "==", user.uid),
-        where("is_deleted", "==", false),
-        where("is_archived", "==", false),
-        orderBy("is_pinned", "desc"),
-        orderBy("updated_at", "desc")
-      );
-
+      const q = query(notesRef, where("user_id", "==", user.uid));
       const snapshot = await getDocs(q);
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setNotes((data as Note[]) || []);
+      const allNotes = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Note));
+      
+      // Filter and sort client-side
+      const filteredNotes = allNotes
+        .filter(n => !n.is_deleted && !n.is_archived)
+        .sort((a, b) => {
+          if (a.is_pinned !== b.is_pinned) return a.is_pinned ? -1 : 1;
+          return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+        });
+      setNotes(filteredNotes);
     } catch (error) {
       console.error("Error fetching notes:", error);
       
