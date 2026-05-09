@@ -84,12 +84,12 @@ export default function CalendarPage() {
         <div className="lg:col-span-3 flex flex-col rounded-3xl border border-border/50 bg-card/30 backdrop-blur-sm overflow-hidden shadow-2xl shadow-primary/5">
           <div className="grid grid-cols-7 border-b border-border/50">
             {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(d => (
-              <div key={d} className="px-2 py-4 text-center text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">{d}</div>
+              <div key={d} className="px-1 py-3 text-center text-[9px] font-bold uppercase tracking-tighter text-muted-foreground/60">{d}</div>
             ))}
           </div>
           <div className="grid grid-cols-7 flex-1 overflow-y-auto">
             {Array.from({ length: days.startPad }).map((_, i) => (
-              <div key={`pad-${i}`} className="min-h-[100px] border-b border-r border-border/20 bg-muted/5" />
+              <div key={`pad-${i}`} className="min-h-[70px] md:min-h-[100px] border-b border-r border-border/20 bg-muted/5" />
             ))}
             {days.interval.map(day => {
               const items = getItemsForDay(day);
@@ -99,24 +99,23 @@ export default function CalendarPage() {
 
               return (
                 <button key={day.toISOString()} onClick={() => setSelectedDate(day)}
-                  className={cn("min-h-[100px] border-b border-r border-border/20 p-2 text-left transition-all relative group overflow-hidden",
+                  className={cn("min-h-[70px] md:min-h-[100px] min-w-0 border-b border-r border-border/20 p-1 md:p-2 text-left transition-all relative group overflow-hidden",
                     selected ? "bg-primary/5 ring-1 ring-primary/20 ring-inset" : "hover:bg-accent/30")}>
-                  <span className={cn("text-xs font-bold transition-all", 
-                    today ? "inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30" : "text-foreground/70 group-hover:text-foreground",
+                  <span className={cn("text-[10px] md:text-xs font-bold transition-all", 
+                    today ? "inline-flex h-5 w-5 md:h-6 md:w-6 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30" : "text-foreground/70 group-hover:text-foreground",
                     selected && !today && "text-primary"
                   )}>
                     {format(day, "d")}
                   </span>
                   
                   {hasItems && (
-                    <div className="mt-2 space-y-1">
-                      {items.tasks.slice(0, 2).map(t => (
-                        <div key={t.id} className={cn("h-1 w-full rounded-full", t.priority === "high" ? "bg-red-500" : "bg-primary")} />
-                      ))}
-                      {items.reminders.length > 0 && <div className="h-1 w-full rounded-full bg-amber-500" />}
-                      <div className="text-[10px] text-muted-foreground/60 font-medium mt-1">
-                        {items.tasks.length + items.reminders.length} items
+                    <div className="mt-1 md:mt-2 space-y-0.5 md:space-y-1">
+                      <div className="flex gap-0.5 flex-wrap">
+                        {items.tasks.slice(0, 3).map(t => (
+                          <div key={t.id} className={cn("h-1 w-1 md:h-1 md:w-full rounded-full", t.priority === "high" ? "bg-red-500" : "bg-primary")} />
+                        ))}
                       </div>
+                      {items.reminders.length > 0 && <div className="h-0.5 md:h-1 w-full rounded-full bg-amber-500" />}
                     </div>
                   )}
                 </button>
