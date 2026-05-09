@@ -1,4 +1,4 @@
-init"use client";
+"use client";
 
 import { useEffect, useState } from "react";
 import { Download, Bell, X, Sparkles } from "lucide-react";
