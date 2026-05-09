@@ -179,64 +179,72 @@ export default function NoteDetailPage() {
   );
 
   return (
-    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-      <div className="flex items-center justify-between">
-        <Button variant="ghost" size="sm" onClick={() => router.push("/dashboard/notes")}>
-          <ArrowLeft className="mr-1 h-4 w-4" /> Notes
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="relative pb-24">
+      {/* Fixed Header for Actions */}
+      <div className="fixed top-0 left-0 right-0 z-[100] bg-background/80 backdrop-blur-2xl border-b border-border/50 px-4 py-3 flex items-center justify-between shadow-lg shadow-black/5 md:relative md:top-auto md:left-auto md:right-auto md:z-30 md:-mx-4 md:mb-6 md:rounded-none md:border-b-0 md:bg-transparent md:backdrop-blur-none md:shadow-none">
+        <Button variant="ghost" size="icon" onClick={() => router.push("/dashboard/notes")} className="h-10 w-10 rounded-2xl bg-muted/30 hover:bg-muted/50 transition-all">
+          <ArrowLeft className="h-5 w-5" />
         </Button>
-        <div className="flex items-center gap-2">
-          {/* Voice Input */}
-          {voice.isSupported && (
-            <Button variant={voice.isListening ? "destructive" : "outline"} size="icon" className="h-9 w-9" onClick={voice.toggleListening} title="Voice input">
-              {voice.isListening ? <MicOff className="h-4 w-4 animate-pulse" /> : <Mic className="h-4 w-4" />}
-            </Button>
-          )}
-          {/* AI Features Menu */}
+        
+        <div className="flex items-center gap-1.5 md:gap-2">
+          {/* AI Feature Pill (Mobile) */}
           <DropdownMenu>
-            <DropdownMenuTrigger render={<button disabled={summarizing || extracting} className="h-9 inline-flex items-center justify-center gap-1.5 rounded-md border border-primary/20 bg-primary/5 px-3 hover:bg-primary/10 transition-colors text-sm font-medium text-primary">
-                {(summarizing || extracting) ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
-                AI Actions
-              </button>} />
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={handleSummarize}>
-                <Sparkles className="mr-2 h-4 w-4" /> Summarize Note
+            <DropdownMenuTrigger render={
+              <button disabled={summarizing || extracting} className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary hover:bg-primary/20 transition-all active:scale-95">
+                {(summarizing || extracting) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+              </button>
+            } />
+            <DropdownMenuContent align="end" className="w-56 rounded-2xl p-2 shadow-2xl border-primary/10">
+              <p className="px-2 py-1.5 text-[10px] font-bold uppercase tracking-widest text-primary/60">AI Intelligence</p>
+              <DropdownMenuItem onClick={handleSummarize} className="rounded-xl py-2.5">
+                <Sparkles className="mr-3 h-4 w-4 text-primary" /> Summarize Content
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleExtractActions}>
-                <ListChecks className="mr-2 h-4 w-4" /> Extract Tasks
+              <DropdownMenuItem onClick={handleExtractActions} className="rounded-xl py-2.5">
+                <ListChecks className="mr-3 h-4 w-4 text-emerald-500" /> Extract To-Do List
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          {/* Export */}
+
+          {/* Secondary Actions Menu */}
           <DropdownMenu>
-            <DropdownMenuTrigger render={<button className="h-9 w-9 inline-flex items-center justify-center rounded-md border border-input bg-background hover:bg-accent transition-colors">
-                <Download className="h-4 w-4" />
-              </button>} />
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => exportAsMarkdown(title, plainText, tags)}>
-                <FileText className="mr-2 h-4 w-4" /> Markdown
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => exportAsJSON(title, content, plainText, tags, note?.created_at || '', note?.updated_at || '')}>
-                <FileJson className="mr-2 h-4 w-4" /> JSON
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => exportAsText(title, plainText)}>
-                <FileType className="mr-2 h-4 w-4" /> Plain Text
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => exportAsPrintableHTML(title, plainText, tags)}>
-                <Download className="mr-2 h-4 w-4" /> HTML (Print)
-              </DropdownMenuItem>
+            <DropdownMenuTrigger render={
+              <button className="flex h-9 w-9 items-center justify-center rounded-xl bg-muted/50 hover:bg-muted transition-all active:scale-95">
+                <Palette className="h-4 w-4 text-foreground/70" />
+              </button>
+            } />
+            <DropdownMenuContent align="end" className="w-56 rounded-2xl p-3 shadow-2xl border-border/50">
+               <p className="px-2 mb-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">Appearance</p>
+               <div className="grid grid-cols-4 gap-2 px-1 mb-4">
+                  {NOTE_COLORS.map(c => (
+                    <button key={c.value} className={cn("h-8 w-8 rounded-full border-2 transition-all", color === c.value ? "border-primary scale-110 shadow-lg shadow-primary/20" : "border-transparent")}
+                      style={{ backgroundColor: c.value === "transparent" ? "var(--muted)" : c.value }}
+                      onClick={() => setColor(c.value)} />
+                  ))}
+               </div>
+               <Separator className="my-2" />
+               <p className="px-2 py-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">Tools</p>
+               {voice.isSupported && (
+                 <DropdownMenuItem onClick={voice.toggleListening} className="rounded-xl py-2.5">
+                   <Mic className={cn("mr-3 h-4 w-4", voice.isListening && "text-red-500 animate-pulse")} /> 
+                   {voice.isListening ? "Stop Voice Input" : "Start Voice Input"}
+                 </DropdownMenuItem>
+               )}
+               <DropdownMenuItem onClick={() => exportAsMarkdown(title, plainText, tags)} className="rounded-xl py-2.5">
+                 <Download className="mr-3 h-4 w-4" /> Export as Markdown
+               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          {/* Color */}
-          <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => setShowColors(!showColors)}>
-            <Palette className="h-4 w-4" style={{ color: color !== "transparent" ? color : undefined }} />
-          </Button>
-          {/* Save */}
-          <Button onClick={handleSave} disabled={saving} className="gradient-primary border-0 text-white">
-            {saving ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Save className="mr-1 h-4 w-4" />}
+
+          {/* Primary Save Button */}
+          <Button onClick={handleSave} disabled={saving} className="h-10 px-6 rounded-2xl gradient-primary border-0 text-white shadow-xl shadow-primary/30 transition-all hover:scale-105 active:scale-95 font-bold text-sm">
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
             Save
           </Button>
         </div>
       </div>
+
+      {/* Top Spacer for Fixed Header on Mobile */}
+      <div className="h-16 md:hidden" />
 
       {showColors && (
         <div className="flex gap-2 flex-wrap">

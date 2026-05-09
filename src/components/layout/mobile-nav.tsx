@@ -42,10 +42,17 @@ export function MobileNav({ user }: MobileNavProps) {
   const { theme, setTheme } = useTheme();
   const [open, setOpen] = useState(false);
 
+  // Define routes where the global mobile navigation should be HIDDEN to provide focus
+  const isFocusedPage = pathname.includes("/notes/") || 
+                        pathname.includes("/tasks/kanban") || 
+                        pathname.includes("/profile");
+
   const isActive = (href: string) => {
     if (href === "/dashboard") return pathname === "/dashboard";
     return pathname.startsWith(href);
   };
+
+  if (isFocusedPage) return null;
 
   const handleLogout = async () => {
     await signOut(auth);

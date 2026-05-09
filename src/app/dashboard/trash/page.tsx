@@ -26,31 +26,32 @@ export default function TrashPage() {
     const user = auth.currentUser;
     if (!user) return;
 
-    // Fetch deleted notes
-    const notesRef = collection(db, "notes");
-    const notesQ = query(
-      notesRef,
-      where("user_id", "==", user.uid),
-      where("is_deleted", "==", true),
-      orderBy("deleted_at", "desc")
-    );
-    const notesSnapshot = await getDocs(notesQ);
-    const notesData = notesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    try {
+      // Fetch deleted notes
+      const notesRef = collection(db, "notes");
+      const notesQ = query(notesRef, where("user_id", "==", user.uid));
+      const notesSnapshot = await getDocs(notesQ);
+      const allNotes = notesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Note[];
+      const deletedNotes = allNotes
+        .filter(n => n.is_deleted)
+        .sort((a, b) => new Date(b.deleted_at || 0).getTime() - new Date(a.deleted_at || 0).getTime());
 
-    // Fetch deleted tasks
-    const tasksRef = collection(db, "tasks");
-    const tasksQ = query(
-      tasksRef,
-      where("user_id", "==", user.uid),
-      where("is_deleted", "==", true),
-      orderBy("deleted_at", "desc")
-    );
-    const tasksSnapshot = await getDocs(tasksQ);
-    const tasksData = tasksSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      // Fetch deleted tasks
+      const tasksRef = collection(db, "tasks");
+      const tasksQ = query(tasksRef, where("user_id", "==", user.uid));
+      const tasksSnapshot = await getDocs(tasksQ);
+      const allTasks = tasksSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Task[];
+      const deletedTasks = allTasks
+        .filter(t => t.is_deleted)
+        .sort((a, b) => new Date(b.deleted_at || 0).getTime() - new Date(a.deleted_at || 0).getTime());
 
-    setNotes((notesData as Note[]) || []);
-    setTasks((tasksData as Task[]) || []);
-    setLoading(false);
+      setNotes(deletedNotes);
+      setTasks(deletedTasks);
+    } catch (error) {
+      console.error("Error fetching trash:", error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { 

@@ -9,6 +9,7 @@ import { collection, addDoc } from "firebase/firestore";
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Save, Loader2, Tag, Palette } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -83,22 +84,41 @@ export default function NewNotePage() {
   };
 
   return (
-    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-      {/* Top bar */}
-      <div className="flex items-center justify-between">
-        <Button variant="ghost" size="sm" onClick={() => router.back()}>
-          <ArrowLeft className="mr-1 h-4 w-4" /> Back
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="relative pb-24">
+      {/* Fixed Header */}
+      <div className="fixed top-0 left-0 right-0 z-[100] bg-background/80 backdrop-blur-2xl border-b border-border/50 px-4 py-3 flex items-center justify-between shadow-lg shadow-black/5 md:relative md:top-auto md:left-auto md:right-auto md:z-30 md:-mx-4 md:mb-6 md:rounded-none md:border-b-0 md:bg-transparent md:backdrop-blur-none md:shadow-none">
+        <Button variant="ghost" size="icon" onClick={() => router.back()} className="h-10 w-10 rounded-2xl bg-muted/30 hover:bg-muted/50 transition-all">
+          <ArrowLeft className="h-5 w-5" />
         </Button>
+        
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => setShowColors(!showColors)}>
-            <Palette className="h-4 w-4" style={{ color: color !== "transparent" ? color : undefined }} />
-          </Button>
-          <Button onClick={handleSave} disabled={saving} className="gradient-primary border-0 text-white shadow-md shadow-primary/20">
-            {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+          <DropdownMenu>
+            <DropdownMenuTrigger render={
+              <button className="flex h-9 w-9 items-center justify-center rounded-xl bg-muted/50 hover:bg-muted transition-all active:scale-95">
+                <Palette className="h-4 w-4 text-foreground/70" />
+              </button>
+            } />
+            <DropdownMenuContent align="end" className="w-56 rounded-2xl p-3 shadow-2xl border-border/50">
+               <p className="px-2 mb-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">Note Color</p>
+               <div className="grid grid-cols-4 gap-2 px-1">
+                  {NOTE_COLORS.map(c => (
+                    <button key={c.value} className={cn("h-8 w-8 rounded-full border-2 transition-all", color === c.value ? "border-primary scale-110 shadow-lg shadow-primary/20" : "border-transparent")}
+                      style={{ backgroundColor: c.value === "transparent" ? "var(--muted)" : c.value }}
+                      onClick={() => setColor(c.value)} />
+                  ))}
+               </div>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <Button onClick={handleSave} disabled={saving} className="h-10 px-6 rounded-2xl gradient-primary border-0 text-white shadow-xl shadow-primary/30 transition-all hover:scale-105 active:scale-95 font-bold text-sm">
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
             Save
           </Button>
         </div>
       </div>
+
+      {/* Top Spacer for Fixed Header on Mobile */}
+      <div className="h-16 md:hidden" />
 
       {/* Color picker */}
       {showColors && (
