@@ -34,8 +34,6 @@ export function NoteEditor({ content, onChange, editable = true }: NoteEditorPro
       Highlight.configure({ multicolor: true }),
       TaskList,
       TaskItem.configure({ nested: true }),
-      Underline,
-      LinkExtension.configure({ openOnClick: false }),
     ],
     content: content && Object.keys(content).length > 0 ? content : undefined,
     editable,

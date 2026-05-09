@@ -48,7 +48,7 @@ export default function DashboardLayout({
 
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto pb-32 md:pb-0">
-        <div className="mx-auto max-w-6xl px-4 py-6 md:px-8 md:py-8">
+        <div className="mx-auto max-w-6xl px-4 pt-24 pb-6 md:px-8 md:py-8">
           <DashboardShell>{children}</DashboardShell>
         </div>
       </main>

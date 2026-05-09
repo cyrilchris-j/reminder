@@ -159,10 +159,10 @@ export default function RemindersPage() {
                   className="h-14 pl-12 bg-background/50 border-primary/10 focus:border-primary/30 rounded-2xl shadow-inner" />
               </div>
             </div>
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex items-center gap-2">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+              <div className="flex flex-wrap items-center gap-2">
                 <Select value={repeatType} onValueChange={v => setRepeatType(v as RepeatType)}>
-                  <SelectTrigger className="w-[140px] h-10 rounded-xl bg-background/50 border-primary/10">
+                  <SelectTrigger className="w-full sm:w-[140px] h-10 rounded-xl bg-background/50 border-primary/10">
                     <SelectValue placeholder="Repeat" />
                   </SelectTrigger>
                   <SelectContent>
@@ -172,11 +172,11 @@ export default function RemindersPage() {
                     <SelectItem value="monthly">Monthly</SelectItem>
                   </SelectContent>
                 </Select>
-                <Badge variant="secondary" className="px-3 py-1 rounded-full bg-primary/10 text-primary border-0 font-medium">Auto-Task Enabled</Badge>
+                <Badge variant="secondary" className="px-3 py-1 rounded-full bg-primary/10 text-primary border-0 font-medium whitespace-nowrap">Auto-Task Enabled</Badge>
               </div>
-              <Button type="submit" disabled={saving} className="h-12 px-8 rounded-2xl gradient-primary border-0 text-white shadow-lg shadow-primary/30 transition-all hover:scale-105 active:scale-95">
-                {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : <Plus className="h-5 w-5 mr-2" />}
-                Set Reminder
+              <Button type="submit" disabled={saving} className="h-12 px-8 rounded-2xl gradient-primary border-0 text-white shadow-lg shadow-primary/30 transition-all hover:scale-105 active:scale-95 w-full sm:w-auto">
+                {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : <Plus className="h-5 w-5 sm:mr-2" />}
+                <span className="sm:inline">Set Reminder</span>
               </Button>
             </div>
           </form>

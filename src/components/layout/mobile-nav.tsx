@@ -89,11 +89,6 @@ export function MobileNav({ user }: MobileNavProps) {
                       <p className="text-[10px] uppercase tracking-widest text-primary font-bold">Premium Workspace</p>
                     </div>
                   </div>
-                  <SheetClose render={
-                    <button className="h-8 w-8 flex items-center justify-center rounded-full bg-muted/50">
-                      <X className="h-4 w-4" />
-                    </button>
-                  } />
                 </div>
 
                 <div className="flex items-center gap-4 p-4 rounded-3xl bg-primary/5 border border-primary/10">
