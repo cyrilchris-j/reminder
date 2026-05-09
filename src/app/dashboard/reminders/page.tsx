@@ -35,18 +35,24 @@ export default function RemindersPage() {
     const user = auth.currentUser;
     if (!user) return;
 
-    const remindersRef = collection(db, "reminders");
-    const q = query(
-      remindersRef,
-      where("user_id", "==", user.uid),
-      where("is_active", "==", true),
-      orderBy("remind_at", "asc")
-    );
+    try {
+      const remindersRef = collection(db, "reminders");
+      const q = query(
+        remindersRef,
+        where("user_id", "==", user.uid),
+        where("is_active", "==", true),
+        orderBy("remind_at", "asc")
+      );
 
-    const snapshot = await getDocs(q);
-    const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    setReminders((data as Reminder[]) || []);
-    setLoading(false);
+      const snapshot = await getDocs(q);
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setReminders((data as Reminder[]) || []);
+    } catch (error) {
+      console.error("Error fetching reminders:", error);
+      // Fallback or toast already handled by useEffect if needed
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { 

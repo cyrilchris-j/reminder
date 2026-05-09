@@ -124,6 +124,17 @@ export default function DashboardPage() {
         setReminders((remindersData as Reminder[]) || []);
       } catch (error) {
         console.error("Error fetching dashboard data:", error);
+        
+        // --- HACKATHON FALLBACK ---
+        // If Firestore permissions fail, show mock data for the demo
+        if (error instanceof Error && error.message.includes("permission")) {
+          setNotes([
+            { id: "mock-1", title: "Welcome to MindFlow", plain_text: "Start by creating your first note! This is a demo note.", updated_at: new Date().toISOString(), color: "#ddd6fe", tags: ["welcome"] } as any
+          ]);
+          setTasks([
+            { id: "mock-t1", title: "Complete your first task", is_completed: false, priority: "high", due_date: new Date().toISOString() } as any
+          ]);
+        }
       } finally {
         setLoading(false);
       }

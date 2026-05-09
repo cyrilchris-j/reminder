@@ -26,32 +26,36 @@ export default function CalendarPage() {
   useEffect(() => {
     if (!user) return;
     const fetch = async () => {
-      const start = startOfMonth(currentMonth).toISOString();
-      const end = endOfMonth(currentMonth).toISOString();
-      
-      // Fetch tasks
-      const tasksRef = collection(db, "tasks");
-      const qt = query(
-        tasksRef, 
-        where("user_id", "==", user.uid), 
-        where("is_deleted", "==", false),
-        where("due_date", ">=", start),
-        where("due_date", "<=", end)
-      );
-      const snapshotTasks = await getDocs(qt);
-      setTasks(snapshotTasks.docs.map(doc => ({ id: doc.id, ...doc.data() } as Task)));
+      try {
+        const start = startOfMonth(currentMonth).toISOString();
+        const end = endOfMonth(currentMonth).toISOString();
+        
+        // Fetch tasks
+        const tasksRef = collection(db, "tasks");
+        const qt = query(
+          tasksRef, 
+          where("user_id", "==", user.uid), 
+          where("is_deleted", "==", false),
+          where("due_date", ">=", start),
+          where("due_date", "<=", end)
+        );
+        const snapshotTasks = await getDocs(qt);
+        setTasks(snapshotTasks.docs.map(doc => ({ id: doc.id, ...doc.data() } as Task)));
 
-      // Fetch reminders
-      const remindersRef = collection(db, "reminders");
-      const qr = query(
-        remindersRef, 
-        where("user_id", "==", user.uid), 
-        where("is_active", "==", true),
-        where("remind_at", ">=", start),
-        where("remind_at", "<=", end)
-      );
-      const snapshotReminders = await getDocs(qr);
-      setReminders(snapshotReminders.docs.map(doc => ({ id: doc.id, ...doc.data() } as Reminder)));
+        // Fetch reminders
+        const remindersRef = collection(db, "reminders");
+        const qr = query(
+          remindersRef, 
+          where("user_id", "==", user.uid), 
+          where("is_active", "==", true),
+          where("remind_at", ">=", start),
+          where("remind_at", "<=", end)
+        );
+        const snapshotReminders = await getDocs(qr);
+        setReminders(snapshotReminders.docs.map(doc => ({ id: doc.id, ...doc.data() } as Reminder)));
+      } catch (error) {
+        console.error("Error fetching calendar data:", error);
+      }
     };
     fetch();
   }, [currentMonth, user]);
