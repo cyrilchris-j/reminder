@@ -35,15 +35,15 @@ export default function KanbanPage() {
     if (!user) return;
     try {
       const tasksRef = collection(db, "tasks");
-      const q = query(
-        tasksRef, 
-        where("user_id", "==", user.uid),
-        where("is_deleted", "==", false),
-        orderBy("created_at", "desc")
-      );
+      const q = query(tasksRef, where("user_id", "==", user.uid));
       const snapshot = await getDocs(q);
-      const tasksData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Task));
-      setTasks(tasksData);
+      const allTasks = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Task));
+      
+      const filteredTasks = allTasks
+        .filter(t => !t.is_deleted)
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        
+      setTasks(filteredTasks);
     } catch (error) {
       console.error(error);
     } finally {

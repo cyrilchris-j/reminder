@@ -8,6 +8,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Toaster } from 'sonner';
 import { AuthProvider } from '@/components/providers/auth-provider';
+import { PWAHandler } from '@/components/pwa/pwa-handler';
 import { useState, useEffect } from 'react';
 
 // Register service worker for PWA
@@ -47,6 +48,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <TooltipProvider delay={200}>
           <AuthProvider>
             {children}
+            <PWAHandler />
           </AuthProvider>
           <Toaster
             position="bottom-right"
