@@ -28,25 +28,25 @@ export default function FolderDetailPage() {
     if (!user) return;
     const fetch = async () => {
       try {
-        // Fetch folder
+        // Fetch folder info
         const folderDoc = await getDoc(doc(db, "folders", folderId));
         if (folderDoc.exists()) {
           setFolder({ id: folderDoc.id, ...folderDoc.data() } as Folder);
         }
 
-        // Fetch notes in folder
+        // Fetch user notes and filter client-side (No index required)
         const notesRef = collection(db, "notes");
-        const q = query(
-          notesRef, 
-          where("user_id", "==", user.uid),
-          where("folder_id", "==", folderId),
-          where("is_deleted", "==", false),
-          orderBy("updated_at", "desc")
-        );
+        const q = query(notesRef, where("user_id", "==", user.uid));
         const snapshot = await getDocs(q);
-        setNotes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Note)));
+        const allNotes = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Note));
+        
+        const filtered = allNotes
+          .filter(n => n.folder_id === folderId && !n.is_deleted)
+          .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+          
+        setNotes(filtered);
       } catch (error) {
-        console.error(error);
+        console.error("Error fetching folder data:", error);
       } finally {
         setLoading(false);
       }
@@ -54,13 +54,26 @@ export default function FolderDetailPage() {
     fetch();
   }, [folderId, user]);
 
-  if (loading) return <div className="space-y-4"><Skeleton className="h-8 w-48" /><Skeleton className="h-64 rounded-2xl" /></div>;
+  if (loading) return (
+    <div className="space-y-4">
+      <Skeleton className="h-8 w-48" />
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {[1,2,3].map(i => <Skeleton key={i} className="h-48 rounded-2xl" />)}
+      </div>
+    </div>
+  );
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="sm" onClick={() => router.push("/dashboard/folders")}><ArrowLeft className="mr-1 h-4 w-4" />Folders</Button>
-        <h1 className="text-2xl font-bold">{folder?.name || "Folder"}</h1>
+    <div className="relative pb-20">
+      {/* Action Header */}
+      <div className="flex items-center gap-3 mb-8">
+        <Button variant="ghost" size="icon" onClick={() => router.push("/dashboard/folders")} className="h-10 w-10 rounded-2xl bg-muted/30 hover:bg-muted/50 transition-all">
+          <ArrowLeft className="h-5 w-5" />
+        </Button>
+        <div className="flex-1">
+          <h1 className="text-2xl font-bold tracking-tight">{folder?.name || "Folder"}</h1>
+          <p className="text-sm text-muted-foreground">{notes.length} note{notes.length !== 1 && "s"}</p>
+        </div>
       </div>
       {notes.length === 0 ? (
         <div className="flex flex-col items-center py-20"><div className="mb-4 rounded-3xl bg-primary/10 p-5"><StickyNote className="h-10 w-10 text-primary" /></div><p className="font-semibold">No notes in this folder</p></div>
