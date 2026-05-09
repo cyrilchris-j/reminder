@@ -1,7 +1,10 @@
+"use client";
+
+import { db, auth } from "@/lib/firebase/client";
+import { collection, query, where, getDocs, doc, updateDoc, deleteDoc, orderBy } from "firebase/firestore";
 // ============================================
 // MindFlow — Trash Page (soft-deleted items)
 // ============================================
-"use client";
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
@@ -10,7 +13,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
-import { createClient } from "@/lib/supabase/client";
 import type { Note, Task } from "@/types/database";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -21,26 +23,59 @@ export default function TrashPage() {
   const [loading, setLoading] = useState(true);
 
   const fetchTrash = async () => {
-    const supabase = createClient();
-    const { data: n } = await supabase.from("notes").select("*").eq("is_deleted", true).order("deleted_at", { ascending: false });
-    const { data: t } = await supabase.from("tasks").select("*").eq("is_deleted", true).order("deleted_at", { ascending: false });
-    setNotes((n as Note[]) || []);
-    setTasks((t as Task[]) || []);
+    const user = auth.currentUser;
+    if (!user) return;
+
+    // Fetch deleted notes
+    const notesRef = collection(db, "notes");
+    const notesQ = query(
+      notesRef,
+      where("user_id", "==", user.uid),
+      where("is_deleted", "==", true),
+      orderBy("deleted_at", "desc")
+    );
+    const notesSnapshot = await getDocs(notesQ);
+    const notesData = notesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+    // Fetch deleted tasks
+    const tasksRef = collection(db, "tasks");
+    const tasksQ = query(
+      tasksRef,
+      where("user_id", "==", user.uid),
+      where("is_deleted", "==", true),
+      orderBy("deleted_at", "desc")
+    );
+    const tasksSnapshot = await getDocs(tasksQ);
+    const tasksData = tasksSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+    setNotes((notesData as Note[]) || []);
+    setTasks((tasksData as Task[]) || []);
     setLoading(false);
   };
 
-  useEffect(() => { fetchTrash(); }, []);
+  useEffect(() => { 
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      if (user) {
+        fetchTrash();
+      } else {
+        setLoading(false);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
   const restore = async (type: "notes" | "tasks", id: string) => {
-    const supabase = createClient();
-    await supabase.from(type).update({ is_deleted: false, deleted_at: null }).eq("id", id);
+    await updateDoc(doc(db, type, id), { 
+      is_deleted: false, 
+      deleted_at: null,
+      updated_at: new Date().toISOString()
+    });
     toast.success("Restored!");
     fetchTrash();
   };
 
   const permanentDelete = async (type: "notes" | "tasks", id: string) => {
-    const supabase = createClient();
-    await supabase.from(type).delete().eq("id", id);
+    await deleteDoc(doc(db, type, id));
     toast.success("Permanently deleted");
     fetchTrash();
   };

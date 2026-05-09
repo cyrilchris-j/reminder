@@ -1,7 +1,10 @@
+"use client";
+
+import { db, auth } from "@/lib/firebase/client";
+import { collection, query, where, getDocs, doc, updateDoc, orderBy } from "firebase/firestore";
 // ============================================
 // MindFlow — Notes List Page
 // ============================================
-"use client";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -18,7 +21,6 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
-import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import type { Note } from "@/types/database";
 import { format } from "date-fns";
@@ -33,35 +35,49 @@ export default function NotesPage() {
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
 
   const fetchNotes = async () => {
-    const supabase = createClient();
-    const { data } = await supabase
-      .from("notes")
-      .select("*, note_tags(tag)")
-      .eq("is_deleted", false)
-      .eq("is_archived", false)
-      .order("is_pinned", { ascending: false })
-      .order("updated_at", { ascending: false });
-    if (data) {
-      setNotes(data.map((n: Record<string, unknown>) => ({
-        ...n,
-        tags: ((n.note_tags as Array<{tag:string}>) || []).map(t => t.tag),
-      })) as Note[]);
-    }
+    const user = auth.currentUser;
+    if (!user) return;
+
+    const notesRef = collection(db, "notes");
+    const q = query(
+      notesRef,
+      where("user_id", "==", user.uid),
+      where("is_deleted", "==", false),
+      where("is_archived", "==", false),
+      orderBy("is_pinned", "desc"),
+      orderBy("updated_at", "desc")
+    );
+
+    const snapshot = await getDocs(q);
+    const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    setNotes((data as Note[]) || []);
     setLoading(false);
   };
 
-  useEffect(() => { fetchNotes(); }, []);
+  useEffect(() => { 
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      if (user) {
+        fetchNotes();
+      } else {
+        setLoading(false);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
   const handleAction = async (id: string, action: string, pinned?: boolean) => {
-    const supabase = createClient();
     if (action === "pin") {
-      await supabase.from("notes").update({ is_pinned: !pinned }).eq("id", id);
+      await updateDoc(doc(db, "notes", id), { is_pinned: !pinned, updated_at: new Date().toISOString() });
       toast.success(pinned ? "Unpinned" : "Pinned");
     } else if (action === "archive") {
-      await supabase.from("notes").update({ is_archived: true }).eq("id", id);
+      await updateDoc(doc(db, "notes", id), { is_archived: true, updated_at: new Date().toISOString() });
       toast.success("Archived");
     } else if (action === "delete") {
-      await supabase.from("notes").update({ is_deleted: true, deleted_at: new Date().toISOString() }).eq("id", id);
+      await updateDoc(doc(db, "notes", id), { 
+        is_deleted: true, 
+        deleted_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      });
       toast.success("Moved to trash");
     }
     fetchNotes();
@@ -73,8 +89,8 @@ export default function NotesPage() {
     return s && t;
   });
   const allTags = Array.from(new Set(notes.flatMap(n => n.tags || [])));
-  const pinned = filtered.filter(n => n.is_pinned);
-  const regular = filtered.filter(n => !n.is_pinned);
+  const pinnedNotes = filtered.filter(n => n.is_pinned);
+  const regularNotes = filtered.filter(n => !n.is_pinned);
 
   if (loading) return (
     <div className="space-y-6">
@@ -106,9 +122,7 @@ export default function NotesPage() {
         <div className="flex items-center gap-2">
           {allTags.length > 0 && (
             <DropdownMenu>
-              <DropdownMenuTrigger >
-                <Button variant="outline" size="sm" className="h-10"><Tag className="mr-1 h-3.5 w-3.5" />{selectedTag || "Tags"}</Button>
-              </DropdownMenuTrigger>
+              <DropdownMenuTrigger render={<Button variant="outline" size="sm" className="h-10"><Tag className="mr-1 h-3.5 w-3.5" />{selectedTag || "Tags"}</Button>} />
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={() => setSelectedTag(null)}>All</DropdownMenuItem>
                 {allTags.map(tag => <DropdownMenuItem key={tag} onClick={() => setSelectedTag(tag)}>{tag}</DropdownMenuItem>)}
@@ -131,16 +145,16 @@ export default function NotesPage() {
         </div>
       ) : (
         <>
-          {pinned.length > 0 && (
+          {pinnedNotes.length > 0 && (
             <div>
               <h2 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground"><Pin className="h-3 w-3" />Pinned</h2>
-              <NoteCards notes={pinned} viewMode={viewMode} onAction={handleAction} router={router} />
+              <NoteCards notes={pinnedNotes} viewMode={viewMode} onAction={handleAction} router={router} />
             </div>
           )}
-          {regular.length > 0 && (
+          {regularNotes.length > 0 && (
             <div>
-              {pinned.length > 0 && <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Others</h2>}
-              <NoteCards notes={regular} viewMode={viewMode} onAction={handleAction} router={router} />
+              {pinnedNotes.length > 0 && <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Others</h2>}
+              <NoteCards notes={regularNotes} viewMode={viewMode} onAction={handleAction} router={router} />
             </div>
           )}
         </>
@@ -173,9 +187,7 @@ function NoteCards({ notes, viewMode, onAction, router }: {
               </div>
               <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
                 <DropdownMenu>
-                  <DropdownMenuTrigger  onClick={e => e.stopPropagation()}>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 bg-background/80 backdrop-blur-sm"><MoreHorizontal className="h-4 w-4" /></Button>
-                  </DropdownMenuTrigger>
+                  <DropdownMenuTrigger render={<Button variant="ghost" size="icon" className="h-7 w-7 bg-background/80 backdrop-blur-sm"><MoreHorizontal className="h-4 w-4" /></Button>} onClick={e => e.stopPropagation()} />
                   <DropdownMenuContent align="end" onClick={e => e.stopPropagation()}>
                     <DropdownMenuItem onClick={() => onAction(note.id, "pin", note.is_pinned)}><Pin className="mr-2 h-4 w-4" />{note.is_pinned ? "Unpin" : "Pin"}</DropdownMenuItem>
                     <DropdownMenuItem onClick={() => onAction(note.id, "archive")}><Archive className="mr-2 h-4 w-4" />Archive</DropdownMenuItem>

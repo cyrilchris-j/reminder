@@ -1,7 +1,10 @@
+"use client";
+
+import { db, auth } from "@/lib/firebase/client";
+import { collection, query, where, getDocs, doc, addDoc, updateDoc, orderBy } from "firebase/firestore";
 // ============================================
 // MindFlow — Reminders Page
 // ============================================
-"use client";
 
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -14,7 +17,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import type { Reminder, RepeatType } from "@/types/database";
 import { format, isPast, isFuture } from "date-fns";
@@ -30,41 +32,79 @@ export default function RemindersPage() {
   const [saving, setSaving] = useState(false);
 
   const fetchReminders = async () => {
-    const supabase = createClient();
-    const { data } = await supabase.from("reminders").select("*").eq("is_active", true).order("remind_at", { ascending: true });
+    const user = auth.currentUser;
+    if (!user) return;
+
+    const remindersRef = collection(db, "reminders");
+    const q = query(
+      remindersRef,
+      where("user_id", "==", user.uid),
+      where("is_active", "==", true),
+      orderBy("remind_at", "asc")
+    );
+
+    const snapshot = await getDocs(q);
+    const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     setReminders((data as Reminder[]) || []);
     setLoading(false);
   };
 
-  useEffect(() => { fetchReminders(); }, []);
+  useEffect(() => { 
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      if (user) {
+        fetchReminders();
+      } else {
+        setLoading(false);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
   const handleCreate = async () => {
     if (!title.trim() || !remindAt) { toast.error("Fill in title and date"); return; }
     setSaving(true);
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    // We need either note_id or task_id — for standalone reminders, we create a dummy task
-    await supabase.from("reminders").insert({
-      user_id: user.id, title: title.trim(), remind_at: new Date(remindAt).toISOString(),
-      repeat_type: repeatType, task_id: null, note_id: null,
-    });
-    setTitle(""); setRemindAt(""); setRepeatType("once");
-    setDialogOpen(false);
-    toast.success("Reminder set!");
-    fetchReminders();
-    setSaving(false);
+    const user = auth.currentUser;
+    if (!user) {
+      toast.error("Not authenticated");
+      setSaving(false);
+      return;
+    }
+
+    try {
+      await addDoc(collection(db, "reminders"), {
+        user_id: user.uid, 
+        title: title.trim(), 
+        remind_at: new Date(remindAt).toISOString(),
+        repeat_type: repeatType, 
+        task_id: null, 
+        note_id: null,
+        is_active: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      });
+      setTitle(""); setRemindAt(""); setRepeatType("once");
+      setDialogOpen(false);
+      toast.success("Reminder set!");
+      fetchReminders();
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to set reminder");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const deleteReminder = async (id: string) => {
-    const supabase = createClient();
-    await supabase.from("reminders").update({ is_active: false }).eq("id", id);
+    await updateDoc(doc(db, "reminders", id), { 
+      is_active: false,
+      updated_at: new Date().toISOString()
+    });
     toast.success("Reminder removed");
     fetchReminders();
   };
 
-  const upcoming = reminders.filter(r => isFuture(new Date(r.remind_at)));
-  const past = reminders.filter(r => isPast(new Date(r.remind_at)));
+  const upcomingReminders = reminders.filter(r => isFuture(new Date(r.remind_at)));
+  const pastReminders = reminders.filter(r => isPast(new Date(r.remind_at)));
 
   if (loading) return (
     <div className="space-y-6">
@@ -78,12 +118,10 @@ export default function RemindersPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Reminders</h1>
-          <p className="text-sm text-muted-foreground">{upcoming.length} upcoming</p>
+          <p className="text-sm text-muted-foreground">{upcomingReminders.length} upcoming</p>
         </div>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger >
-            <Button className="gradient-primary border-0 text-white shadow-md shadow-primary/20"><Plus className="mr-2 h-4 w-4" />New Reminder</Button>
-          </DialogTrigger>
+          <DialogTrigger render={<Button className="gradient-primary border-0 text-white shadow-md shadow-primary/20"><Plus className="mr-2 h-4 w-4" />New Reminder</Button>} />
           <DialogContent>
             <DialogHeader><DialogTitle>Set Reminder</DialogTitle></DialogHeader>
             <div className="space-y-4 pt-2">
@@ -114,12 +152,12 @@ export default function RemindersPage() {
         </div>
       ) : (
         <>
-          {upcoming.length > 0 && (
+          {upcomingReminders.length > 0 && (
             <div>
               <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Upcoming</h2>
               <div className="space-y-2">
                 <AnimatePresence>
-                  {upcoming.map((r, i) => (
+                  {upcomingReminders.map((r, i) => (
                     <motion.div key={r.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}>
                       <Card className="border-border/50 transition-all hover:border-primary/20">
                         <CardContent className="flex items-center gap-4 p-4">
@@ -141,11 +179,11 @@ export default function RemindersPage() {
               </div>
             </div>
           )}
-          {past.length > 0 && (
+          {pastReminders.length > 0 && (
             <div>
               <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Past</h2>
               <div className="space-y-2 opacity-60">
-                {past.map(r => (
+                {pastReminders.map(r => (
                   <Card key={r.id} className="border-border/50">
                     <CardContent className="flex items-center gap-4 p-4">
                       <div className="rounded-xl bg-muted p-2.5"><Bell className="h-5 w-5 text-muted-foreground" /></div>

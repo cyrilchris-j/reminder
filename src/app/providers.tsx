@@ -1,12 +1,13 @@
+"use client";
 // ============================================
 // MindFlow — Client-side Providers wrapper
 // ============================================
-'use client';
 
 import { ThemeProvider } from 'next-themes';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Toaster } from 'sonner';
+import { AuthProvider } from '@/components/providers/auth-provider';
 import { useState, useEffect } from 'react';
 
 // Register service worker for PWA
@@ -44,7 +45,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
         disableTransitionOnChange={false}
       >
         <TooltipProvider delay={200}>
-          {children}
+          <AuthProvider>
+            {children}
+          </AuthProvider>
           <Toaster
             position="bottom-right"
             toastOptions={{

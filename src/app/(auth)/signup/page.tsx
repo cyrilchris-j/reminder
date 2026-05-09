@@ -1,7 +1,7 @@
+"use client";
 // ============================================
 // MindFlow — Signup Page
 // ============================================
-"use client";
 
 import { useState } from "react";
 import Link from "next/link";
@@ -11,7 +11,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { createClient } from "@/lib/supabase/client";
+import { createUserWithEmailAndPassword, updateProfile, signInWithPopup, GoogleAuthProvider } from "firebase/auth";
+import { auth } from "@/lib/firebase/client";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 
@@ -36,22 +37,10 @@ export default function SignupPage() {
 
     setLoading(true);
     try {
-      const supabase = createClient();
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: { full_name: fullName },
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
-        },
-      });
-
-      if (error) {
-        toast.error(error.message);
-      } else {
-        toast.success("Account created! Check your email to verify.");
-        router.push("/login");
-      }
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      await updateProfile(userCredential.user, { displayName: fullName });
+      toast.success("Account created! Please log in.");
+      router.push("/dashboard");
     } catch {
       toast.error("Something went wrong. Please try again.");
     } finally {
@@ -61,17 +50,10 @@ export default function SignupPage() {
 
   const handleGoogleLogin = async () => {
     try {
-      const supabase = createClient();
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
-        },
-      });
-
-      if (error) {
-        toast.error(error.message);
-      }
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
+      toast.success("Welcome!");
+      router.push("/dashboard");
     } catch {
       toast.error("Something went wrong. Please try again.");
     }

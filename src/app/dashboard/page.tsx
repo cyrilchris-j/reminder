@@ -1,8 +1,12 @@
+"use client";
+
+import { db, auth } from "@/lib/firebase/client";
+import { collection, query, where, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, orderBy, limit } from "firebase/firestore";
+import { useAuth } from "@/components/providers/auth-provider";
 // ============================================
 // MindFlow — Dashboard Home Page
 // Shows welcome, today's tasks, recent notes, reminders
 // ============================================
-"use client";
 
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
@@ -24,7 +28,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { createClient } from "@/lib/supabase/client";
 import { MOTIVATIONAL_QUOTES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import type { Note, Task, Reminder } from "@/types/database";
@@ -65,61 +68,69 @@ export default function DashboardPage() {
     return "Good evening";
   }, []);
 
+  const { user: authUser, loading: authLoading } = useAuth();
+
   useEffect(() => {
     const fetchData = async () => {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
+      if (authLoading) return;
+      if (!authUser) {
+        setLoading(false);
+        return;
+      }
 
-      if (!user) return;
+      setUserName(authUser.displayName || "there");
 
-      // Get profile
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("full_name")
-        .eq("id", user.id)
-        .single();
+      try {
+        // Get recent notes
+        const notesRef = collection(db, "notes");
+        const notesQuery = query(
+          notesRef,
+          where("user_id", "==", authUser.uid),
+          where("is_deleted", "==", false),
+          where("is_archived", "==", false),
+          orderBy("updated_at", "desc"),
+          limit(6)
+        );
+        const notesSnapshot = await getDocs(notesQuery);
+        const notesData = notesSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        setNotes((notesData as Note[]) || []);
 
-      setUserName(
-        profile?.full_name || user.user_metadata?.full_name || "there"
-      );
+        // Get today's tasks
+        const tasksRef = collection(db, "tasks");
+        const tasksQuery = query(
+          tasksRef,
+          where("user_id", "==", authUser.uid),
+          where("is_deleted", "==", false),
+          orderBy("sort_order", "asc"),
+          limit(10)
+        );
+        const tasksSnapshot = await getDocs(tasksQuery);
+        const tasksData = tasksSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        setTasks((tasksData as Task[]) || []);
 
-      // Get recent notes
-      const { data: notesData } = await supabase
-        .from("notes")
-        .select("*")
-        .eq("is_deleted", false)
-        .eq("is_archived", false)
-        .order("updated_at", { ascending: false })
-        .limit(6);
+        // Get upcoming reminders
+        const remindersRef = collection(db, "reminders");
+        const remindersQuery = query(
+          remindersRef,
+          where("user_id", "==", authUser.uid),
+          where("is_active", "==", true),
+          where("remind_at", ">=", new Date().toISOString()),
+          orderBy("remind_at", "asc"),
+          limit(5)
+        );
+        const remindersSnapshot = await getDocs(remindersQuery);
+        const remindersData = remindersSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
 
-      setNotes((notesData as Note[]) || []);
-
-      // Get today's tasks
-      const today = new Date().toISOString().split("T")[0];
-      const { data: tasksData } = await supabase
-        .from("tasks")
-        .select("*")
-        .eq("is_deleted", false)
-        .order("sort_order", { ascending: true })
-        .limit(10);
-
-      setTasks((tasksData as Task[]) || []);
-
-      // Get upcoming reminders
-      const { data: remindersData } = await supabase
-        .from("reminders")
-        .select("*")
-        .eq("is_active", true)
-        .gte("remind_at", new Date().toISOString())
-        .order("remind_at", { ascending: true })
-        .limit(5);
-
-      setReminders((remindersData as Reminder[]) || []);
-      setLoading(false);
+        setReminders((remindersData as Reminder[]) || []);
+      } catch (error) {
+        console.error("Error fetching dashboard data:", error);
+      } finally {
+        setLoading(false);
+      }
     };
 
     fetchData();
-  }, []);
+  }, [authUser, authLoading]);
 
   // Task completion stats
   const completedToday = tasks.filter(

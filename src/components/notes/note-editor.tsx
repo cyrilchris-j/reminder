@@ -1,7 +1,7 @@
+"use client";
 // ============================================
 // MindFlow — Note Editor Component (TipTap)
 // ============================================
-"use client";
 
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
@@ -14,9 +14,8 @@ import LinkExtension from "@tiptap/extension-link";
 import {
   Bold, Italic, Underline as UnderlineIcon, Strikethrough,
   Heading1, Heading2, List, ListOrdered, ListChecks,
-  Highlighter, Code, Quote, Link2, Undo2, Redo2, Minus,
+  Highlighter, Code, Quote, Undo2, Redo2, Minus,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -40,6 +39,7 @@ export function NoteEditor({ content, onChange, editable = true }: NoteEditorPro
     ],
     content: content && Object.keys(content).length > 0 ? content : undefined,
     editable,
+    immediatelyRender: false,
     onUpdate: ({ editor }) => {
       onChange(editor.getJSON() as Record<string, unknown>, editor.getText());
     },

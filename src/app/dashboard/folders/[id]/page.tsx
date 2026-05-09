@@ -1,38 +1,58 @@
+"use client";
 // ============================================
 // MindFlow — Folder Detail Page (notes in folder)
 // ============================================
-"use client";
 
 import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { ArrowLeft, StickyNote } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { createClient } from "@/lib/supabase/client";
 import type { Note, Folder } from "@/types/database";
 import { format } from "date-fns";
+import { db, auth } from "@/lib/firebase/client";
+import { collection, query, where, getDocs, getDoc, doc, orderBy } from "firebase/firestore";
+import { useAuthState } from "react-firebase-hooks/auth";
 
 export default function FolderDetailPage() {
   const router = useRouter();
   const params = useParams();
   const folderId = params.id as string;
+  const [user] = useAuthState(auth);
   const [folder, setFolder] = useState<Folder | null>(null);
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!user) return;
     const fetch = async () => {
-      const supabase = createClient();
-      const { data: f } = await supabase.from("folders").select("*").eq("id", folderId).single();
-      setFolder(f as Folder);
-      const { data: n } = await supabase.from("notes").select("*").eq("folder_id", folderId).eq("is_deleted", false).order("updated_at", { ascending: false });
-      setNotes((n as Note[]) || []);
-      setLoading(false);
+      try {
+        // Fetch folder
+        const folderDoc = await getDoc(doc(db, "folders", folderId));
+        if (folderDoc.exists()) {
+          setFolder({ id: folderDoc.id, ...folderDoc.data() } as Folder);
+        }
+
+        // Fetch notes in folder
+        const notesRef = collection(db, "notes");
+        const q = query(
+          notesRef, 
+          where("user_id", "==", user.uid),
+          where("folder_id", "==", folderId),
+          where("is_deleted", "==", false),
+          orderBy("updated_at", "desc")
+        );
+        const snapshot = await getDocs(q);
+        setNotes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Note)));
+      } catch (error) {
+        console.error(error);
+      } finally {
+        setLoading(false);
+      }
     };
     fetch();
-  }, [folderId]);
+  }, [folderId, user]);
 
   if (loading) return <div className="space-y-4"><Skeleton className="h-8 w-48" /><Skeleton className="h-64 rounded-2xl" /></div>;
 

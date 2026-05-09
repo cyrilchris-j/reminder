@@ -1,48 +1,50 @@
+"use client";
 // ============================================
 // Dashboard Layout — Sidebar + Content area
-// Server component that fetches user and passes to client sidebar
 // ============================================
-import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+
 import { Sidebar } from "@/components/layout/sidebar";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
+import { useAuth } from "@/components/providers/auth-provider";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Brain } from "lucide-react";
 
-export default async function DashboardLayout({
+export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { user, loading } = useAuth();
 
-  if (!user) {
-    redirect("/login");
+  if (loading) {
+    return (
+      <div className="h-screen w-screen flex flex-col items-center justify-center bg-background gap-4">
+        <div className="relative">
+          <div className="h-20 w-20 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
+          <Brain className="h-8 w-8 text-primary absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+        </div>
+        <p className="text-sm font-medium animate-pulse text-muted-foreground">Loading your workspace...</p>
+      </div>
+    );
   }
 
-  // Get profile data
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", user.id)
-    .single();
+  if (!user) return null; // handled by AuthProvider redirect
 
   const userData = {
-    id: user.id,
+    id: user.uid,
     email: user.email,
-    full_name: profile?.full_name || user.user_metadata?.full_name || null,
-    avatar_url: profile?.avatar_url || user.user_metadata?.avatar_url || null,
+    full_name: user.displayName || "User",
+    avatar_url: user.photoURL || null,
   };
 
   return (
     <div className="flex h-screen overflow-hidden">
       {/* Desktop Sidebar */}
-      <Sidebar user={userData} />
+      <Sidebar user={userData as any} />
 
       {/* Mobile Nav */}
-      <MobileNav user={userData} />
+      <MobileNav user={userData as any} />
 
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto pb-20 md:pb-0">
@@ -53,4 +55,3 @@ export default async function DashboardLayout({
     </div>
   );
 }
-

@@ -15,17 +15,17 @@ const STATIC_ASSETS = [
 
 // Install — cache static assets
 self.addEventListener("install", (event) => {
-  (event as any).waitUntil(
+  event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(STATIC_ASSETS);
     })
   );
-  (self as any).skipWaiting();
+  self.skipWaiting();
 });
 
 // Activate — clean old caches
 self.addEventListener("activate", (event) => {
-  (event as any).waitUntil(
+  event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames
@@ -34,13 +34,12 @@ self.addEventListener("activate", (event) => {
       );
     })
   );
-  (self as any).clients.claim();
+  self.clients.claim();
 });
 
 // Fetch — network first, fallback to cache
 self.addEventListener("fetch", (event) => {
-  const fetchEvent = event as any;
-  const request = fetchEvent.request as Request;
+  const request = event.request;
 
   // Skip non-GET requests
   if (request.method !== "GET") return;
@@ -48,9 +47,9 @@ self.addEventListener("fetch", (event) => {
   // Skip API requests (always go to network)
   if (request.url.includes("/api/")) return;
 
-  fetchEvent.respondWith(
+  event.respondWith(
     fetch(request)
-      .then((response: Response) => {
+      .then((response) => {
         // Clone the response and cache it
         const responseClone = response.clone();
         caches.open(CACHE_NAME).then((cache) => {
@@ -60,7 +59,7 @@ self.addEventListener("fetch", (event) => {
       })
       .catch(() => {
         // Fallback to cache
-        return caches.match(request).then((cachedResponse: Response | undefined) => {
+        return caches.match(request).then((cachedResponse) => {
           return cachedResponse || new Response("Offline", { status: 503 });
         });
       })
@@ -69,8 +68,7 @@ self.addEventListener("fetch", (event) => {
 
 // Push notification handler
 self.addEventListener("push", (event) => {
-  const pushEvent = event as any;
-  const data = pushEvent.data?.json() ?? {};
+  const data = event.data?.json() ?? {};
 
   const options = {
     body: data.body || "You have a new reminder!",
@@ -86,30 +84,27 @@ self.addEventListener("push", (event) => {
     ],
   };
 
-  pushEvent.waitUntil(
-    (self as any).registration.showNotification(data.title || "MindFlow Reminder", options)
+  event.waitUntil(
+    self.registration.showNotification(data.title || "MindFlow Reminder", options)
   );
 });
 
 // Notification click handler
 self.addEventListener("notificationclick", (event) => {
-  const notifEvent = event as any;
-  notifEvent.notification.close();
+  event.notification.close();
 
-  if (notifEvent.action === "dismiss") return;
+  if (event.action === "dismiss") return;
 
-  const url = notifEvent.notification.data?.url || "/dashboard";
-  notifEvent.waitUntil(
-    (self as any).clients.matchAll({ type: "window" }).then((clientList: any[]) => {
+  const url = event.notification.data?.url || "/dashboard";
+  event.waitUntil(
+    self.clients.matchAll({ type: "window" }).then((clientList) => {
       // Focus existing window or open new one
       for (const client of clientList) {
         if (client.url.includes(url) && "focus" in client) {
           return client.focus();
         }
       }
-      return (self as any).clients.openWindow(url);
+      return self.clients.openWindow(url);
     })
   );
 });
-
-export {};

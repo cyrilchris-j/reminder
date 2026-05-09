@@ -1,7 +1,7 @@
+"use client";
 // ============================================
 // MindFlow — Login Page
 // ============================================
-"use client";
 
 import { useState } from "react";
 import Link from "next/link";
@@ -11,7 +11,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { createClient } from "@/lib/supabase/client";
+import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, sendSignInLinkToEmail } from "firebase/auth";
+import { auth } from "@/lib/firebase/client";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 
@@ -24,25 +25,38 @@ export default function LoginPage() {
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) {
-      toast.error("Please fill in all fields");
+    if (!email) {
+      toast.error("Please provide an email address");
       return;
     }
 
     setLoading(true);
     try {
-      const supabase = createClient();
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      let authError;
 
-      if (error) {
-        toast.error(error.message);
+      try {
+        if (password) {
+          await signInWithEmailAndPassword(auth, email, password);
+        } else {
+          const actionCodeSettings = {
+            url: `${window.location.origin}/dashboard`,
+            handleCodeInApp: true,
+          };
+          await sendSignInLinkToEmail(auth, email, actionCodeSettings);
+          window.localStorage.setItem('emailForSignIn', email);
+          toast.success("Magic link sent! Check your email.");
+          setLoading(false);
+          return;
+        }
+      } catch (err: any) {
+        authError = err;
+      }
+
+      if (authError) {
+        toast.error(authError.message);
       } else {
         toast.success("Welcome back!");
         router.push("/dashboard");
-        router.refresh();
       }
     } catch {
       toast.error("Something went wrong. Please try again.");
@@ -53,17 +67,10 @@ export default function LoginPage() {
 
   const handleGoogleLogin = async () => {
     try {
-      const supabase = createClient();
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
-        },
-      });
-
-      if (error) {
-        toast.error(error.message);
-      }
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
+      toast.success("Welcome back!");
+      router.push("/dashboard");
     } catch {
       toast.error("Something went wrong. Please try again.");
     }
@@ -150,11 +157,10 @@ export default function LoginPage() {
               <Input
                 id="login-password"
                 type={showPassword ? "text" : "password"}
-                placeholder="••••••••"
+                placeholder="•••••••• (Optional for Magic Link)"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="h-11 pl-10 pr-10"
-                required
               />
               <button
                 type="button"

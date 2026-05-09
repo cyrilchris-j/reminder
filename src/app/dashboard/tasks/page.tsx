@@ -1,26 +1,29 @@
+"use client";
+
+import { db, auth } from "@/lib/firebase/client";
+import { collection, query, where, getDocs, doc, addDoc, updateDoc, orderBy } from "firebase/firestore";
+import { useAuth } from "@/components/providers/auth-provider";
 // ============================================
 // MindFlow — Tasks Page
 // ============================================
-"use client";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Plus, CheckCircle2, Circle, Trash2, Clock, Flag,
-  ChevronDown, ChevronRight, GripVertical, Calendar, Kanban,
+  Plus, CheckCircle2, Circle, Trash2, Kanban,
+  Calendar,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import type { Task, Priority } from "@/types/database";
 import { format, isToday, isPast } from "date-fns";
@@ -42,27 +45,48 @@ export default function TasksPage() {
   const [formSaving, setFormSaving] = useState(false);
 
   const fetchTasks = async () => {
-    const supabase = createClient();
-    const { data } = await supabase
-      .from("tasks")
-      .select("*")
-      .eq("is_deleted", false)
-      .is("parent_id", null)
-      .order("is_completed", { ascending: true })
-      .order("sort_order", { ascending: true })
-      .order("created_at", { ascending: false });
+    const user = auth.currentUser;
+    if (!user) return;
+
+    const tasksRef = collection(db, "tasks");
+    const q = query(
+      tasksRef,
+      where("user_id", "==", user.uid),
+      where("is_deleted", "==", false),
+      orderBy("is_completed", "asc"),
+      orderBy("sort_order", "asc")
+    );
+
+    const snapshot = await getDocs(q);
+    const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     setTasks((data as Task[]) || []);
     setLoading(false);
   };
 
-  useEffect(() => { fetchTasks(); }, []);
+  const { user: authUser, loading: authLoading } = useAuth();
+
+  useEffect(() => {
+    if (!authLoading && authUser) {
+      fetchTasks();
+    } else if (!authLoading && !authUser) {
+      setLoading(false);
+    }
+  }, [authUser, authLoading]);
 
   const quickAdd = async () => {
     if (!newTitle.trim()) return;
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = auth.currentUser;
     if (!user) return;
-    await supabase.from("tasks").insert({ user_id: user.id, title: newTitle.trim(), priority: "medium" });
+    await addDoc(collection(db, "tasks"), { 
+      user_id: user.uid, 
+      title: newTitle.trim(), 
+      priority: "medium",
+      is_completed: false,
+      is_deleted: false,
+      sort_order: tasks.length,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    });
     setNewTitle("");
     toast.success("Task added!");
     fetchTasks();
@@ -71,12 +95,19 @@ export default function TasksPage() {
   const handleCreateTask = async () => {
     if (!formTitle.trim()) { toast.error("Title required"); return; }
     setFormSaving(true);
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = auth.currentUser;
     if (!user) return;
-    await supabase.from("tasks").insert({
-      user_id: user.id, title: formTitle.trim(), description: formDesc || null,
-      priority: formPriority, due_date: formDueDate || null,
+    await addDoc(collection(db, "tasks"), {
+      user_id: user.uid, 
+      title: formTitle.trim(), 
+      description: formDesc || null,
+      priority: formPriority, 
+      due_date: formDueDate || null,
+      is_completed: false,
+      is_deleted: false,
+      sort_order: tasks.length,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
     });
     setFormTitle(""); setFormDesc(""); setFormPriority("medium"); setFormDueDate("");
     setDialogOpen(false);
@@ -86,17 +117,20 @@ export default function TasksPage() {
   };
 
   const toggleComplete = async (task: Task) => {
-    const supabase = createClient();
-    await supabase.from("tasks").update({
+    await updateDoc(doc(db, "tasks", task.id), {
       is_completed: !task.is_completed,
       completed_at: !task.is_completed ? new Date().toISOString() : null,
-    }).eq("id", task.id);
+      updated_at: new Date().toISOString()
+    });
     fetchTasks();
   };
 
   const deleteTask = async (id: string) => {
-    const supabase = createClient();
-    await supabase.from("tasks").update({ is_deleted: true, deleted_at: new Date().toISOString() }).eq("id", id);
+    await updateDoc(doc(db, "tasks", id), { 
+      is_deleted: true, 
+      deleted_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    });
     toast.success("Deleted");
     fetchTasks();
   };
@@ -107,9 +141,9 @@ export default function TasksPage() {
     return true;
   });
 
-  const completed = tasks.filter(t => t.is_completed).length;
-  const total = tasks.length;
-  const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+  const completedCount = tasks.filter(t => t.is_completed).length;
+  const totalCount = tasks.length;
+  const pct = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
 
   if (loading) return (
     <div className="space-y-6">
@@ -133,11 +167,7 @@ export default function TasksPage() {
             <Kanban className="mr-1 h-4 w-4" /> Kanban
           </Button>
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger >
-              <Button className="gradient-primary border-0 text-white shadow-md shadow-primary/20">
-                <Plus className="mr-2 h-4 w-4" /> New Task
-              </Button>
-            </DialogTrigger>
+            <DialogTrigger render={<Button className="gradient-primary border-0 text-white shadow-md shadow-primary/20"><Plus className="mr-2 h-4 w-4" /> New Task</Button>} />
             <DialogContent className="sm:max-w-md">
               <DialogHeader><DialogTitle>Create Task</DialogTitle></DialogHeader>
               <div className="space-y-4 pt-2">
@@ -174,7 +204,7 @@ export default function TasksPage() {
             <span className="text-sm font-bold text-primary">{pct}%</span>
           </div>
           <Progress value={pct} className="h-2.5" />
-          <p className="mt-1.5 text-xs text-muted-foreground">{completed} of {total} tasks completed</p>
+          <p className="mt-1.5 text-xs text-muted-foreground">{completedCount} of {totalCount} tasks completed</p>
         </CardContent>
       </Card>
 
@@ -192,7 +222,7 @@ export default function TasksPage() {
       <div className="flex gap-2">
         {(["all", "pending", "completed"] as const).map(f => (
           <Button key={f} variant={filter === f ? "default" : "outline"} size="sm" onClick={() => setFilter(f)} className="capitalize">
-            {f} {f === "all" ? `(${total})` : f === "pending" ? `(${total - completed})` : `(${completed})`}
+            {f} {f === "all" ? `(${totalCount})` : f === "pending" ? `(${totalCount - completedCount})` : `(${completedCount})`}
           </Button>
         ))}
       </div>

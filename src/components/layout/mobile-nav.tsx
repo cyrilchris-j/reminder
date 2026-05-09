@@ -1,7 +1,7 @@
+"use client";
 // ============================================
 // MindFlow — Mobile Navigation
 // ============================================
-"use client";
 
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
@@ -11,11 +11,11 @@ import {
   FolderOpen, Trash2, CalendarDays,
 } from "lucide-react";
 import { useTheme } from "next-themes";
-import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
-import { createClient } from "@/lib/supabase/client";
+import { auth } from "@/lib/firebase/client";
+import { signOut } from "firebase/auth";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -54,8 +54,7 @@ export function MobileNav({ user }: MobileNavProps) {
   };
 
   const handleLogout = async () => {
-    const supabase = createClient();
-    await supabase.auth.signOut();
+    await signOut(auth);
     toast.success("Logged out");
     router.push("/login");
     router.refresh();

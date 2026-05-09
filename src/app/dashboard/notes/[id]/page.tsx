@@ -1,11 +1,14 @@
+"use client";
+
+import { db, auth } from "@/lib/firebase/client";
+import { collection, getDoc, doc, addDoc, updateDoc } from "firebase/firestore";
 // ============================================
 // MindFlow — Note Detail/Edit Page
 // ============================================
-"use client";
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { ArrowLeft, Save, Loader2, Tag, Palette, Sparkles, Trash2, Mic, MicOff, Download, FileText, FileJson, FileType, ListChecks, Wand2 } from "lucide-react";
+import { ArrowLeft, Save, Loader2, Tag, Palette, Sparkles, Mic, MicOff, Download, FileText, FileJson, FileType, ListChecks, Wand2 } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useVoiceInput } from "@/hooks/use-voice-input";
 import { exportAsMarkdown, exportAsJSON, exportAsText, exportAsPrintableHTML } from "@/lib/export";
@@ -14,7 +17,6 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { NoteEditor } from "@/components/notes/note-editor";
-import { createClient } from "@/lib/supabase/client";
 import { NOTE_COLORS } from "@/lib/constants";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -44,21 +46,19 @@ export default function NoteDetailPage() {
 
   useEffect(() => {
     const fetchNote = async () => {
-      const supabase = createClient();
-      const { data } = await supabase
-        .from("notes")
-        .select("*, note_tags(tag)")
-        .eq("id", noteId)
-        .single();
-      if (data) {
-        const n = { ...data, tags: (data.note_tags || []).map((t: {tag: string}) => t.tag) } as Note;
+      const docRef = doc(db, "notes", noteId);
+      const docSnap = await getDoc(docRef);
+      
+      if (docSnap.exists()) {
+        const data = docSnap.data() as any;
+        const n = { id: docSnap.id, ...data } as Note;
         setNote(n);
         setTitle(n.title);
         setContent(n.content);
         setPlainText(n.plain_text);
         setColor(n.color);
         setTags(n.tags || []);
-        setSummary(n.summary);
+        setSummary(n.summary || null);
       }
       setLoading(false);
     };
@@ -81,13 +81,17 @@ export default function NoteDetailPage() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const supabase = createClient();
-      await supabase.from("notes").update({ title, content, plain_text: plainText, color }).eq("id", noteId);
-      // Update tags: delete all, re-insert
-      await supabase.from("note_tags").delete().eq("note_id", noteId);
-      if (tags.length > 0) await supabase.from("note_tags").insert(tags.map(tag => ({ note_id: noteId, tag })));
+      await updateDoc(doc(db, "notes", noteId), { 
+        title, 
+        content, 
+        plain_text: plainText, 
+        color,
+        tags,
+        updated_at: new Date().toISOString()
+      });
       toast.success("Saved!");
-    } catch {
+    } catch (error) {
+      console.error(error);
       toast.error("Failed to save");
     } finally {
       setSaving(false);
@@ -106,8 +110,10 @@ export default function NoteDetailPage() {
       const data = await res.json();
       if (data.summary) {
         setSummary(data.summary);
-        const supabase = createClient();
-        await supabase.from("notes").update({ summary: data.summary }).eq("id", noteId);
+        await updateDoc(doc(db, "notes", noteId), { 
+          summary: data.summary,
+          updated_at: new Date().toISOString()
+        });
         toast.success("Summary generated!");
       }
     } catch {
@@ -128,19 +134,23 @@ export default function NoteDetailPage() {
       });
       const data = await res.json();
       if (data.actions && data.actions.length > 0) {
-        const supabase = createClient();
-        const { data: { user } } = await supabase.auth.getUser();
+        const user = auth.currentUser;
         if (!user) return;
         
-        // Create tasks
-        const tasksToInsert = data.actions.map((t: string) => ({
-          title: t,
-          user_id: user.id,
-          priority: "medium",
-          description: `Extracted from note: ${title}`
-        }));
+        // Create tasks sequentially (or could use writeBatch)
+        for (const t of data.actions) {
+          await addDoc(collection(db, "tasks"), {
+            title: t,
+            user_id: user.uid,
+            priority: "medium",
+            description: `Extracted from note: ${title}`,
+            is_completed: false,
+            is_deleted: false,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          });
+        }
         
-        await supabase.from("tasks").insert(tasksToInsert);
         toast.success(`Extracted ${data.actions.length} tasks!`);
         router.push("/dashboard/tasks");
       } else {
@@ -183,12 +193,10 @@ export default function NoteDetailPage() {
           )}
           {/* AI Features Menu */}
           <DropdownMenu>
-            <DropdownMenuTrigger>
-              <button disabled={summarizing || extracting} className="h-9 inline-flex items-center justify-center gap-1.5 rounded-md border border-primary/20 bg-primary/5 px-3 hover:bg-primary/10 transition-colors text-sm font-medium text-primary">
+            <DropdownMenuTrigger render={<button disabled={summarizing || extracting} className="h-9 inline-flex items-center justify-center gap-1.5 rounded-md border border-primary/20 bg-primary/5 px-3 hover:bg-primary/10 transition-colors text-sm font-medium text-primary">
                 {(summarizing || extracting) ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
                 AI Actions
-              </button>
-            </DropdownMenuTrigger>
+              </button>} />
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={handleSummarize}>
                 <Sparkles className="mr-2 h-4 w-4" /> Summarize Note
@@ -200,11 +208,9 @@ export default function NoteDetailPage() {
           </DropdownMenu>
           {/* Export */}
           <DropdownMenu>
-            <DropdownMenuTrigger>
-              <button className="h-9 w-9 inline-flex items-center justify-center rounded-md border border-input bg-background hover:bg-accent transition-colors">
+            <DropdownMenuTrigger render={<button className="h-9 w-9 inline-flex items-center justify-center rounded-md border border-input bg-background hover:bg-accent transition-colors">
                 <Download className="h-4 w-4" />
-              </button>
-            </DropdownMenuTrigger>
+              </button>} />
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => exportAsMarkdown(title, plainText, tags)}>
                 <FileText className="mr-2 h-4 w-4" /> Markdown

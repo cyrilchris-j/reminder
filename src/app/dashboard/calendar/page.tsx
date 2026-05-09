@@ -1,37 +1,60 @@
+"use client";
 // ============================================
 // MindFlow — Calendar View Page
 // ============================================
-"use client";
 
 import { useEffect, useState, useMemo } from "react";
 import { motion } from "framer-motion";
-import { ChevronLeft, ChevronRight, CalendarDays, CheckSquare, Bell } from "lucide-react";
+import { ChevronLeft, ChevronRight, CheckSquare, Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import type { Task, Reminder } from "@/types/database";
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, isToday, addMonths, subMonths, getDay } from "date-fns";
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday, addMonths, subMonths, getDay } from "date-fns";
+import { db, auth } from "@/lib/firebase/client";
+import { collection, query, where, getDocs } from "firebase/firestore";
+import { useAuthState } from "react-firebase-hooks/auth";
 
 export default function CalendarPage() {
+  const [user] = useAuthState(auth);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [tasks, setTasks] = useState<Task[]>([]);
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
   useEffect(() => {
+    if (!user) return;
     const fetch = async () => {
-      const supabase = createClient();
       const start = startOfMonth(currentMonth).toISOString();
       const end = endOfMonth(currentMonth).toISOString();
-      const { data: t } = await supabase.from("tasks").select("*").eq("is_deleted", false).gte("due_date", start).lte("due_date", end);
-      const { data: r } = await supabase.from("reminders").select("*").eq("is_active", true).gte("remind_at", start).lte("remind_at", end);
-      setTasks((t as Task[]) || []);
-      setReminders((r as Reminder[]) || []);
+      
+      // Fetch tasks
+      const tasksRef = collection(db, "tasks");
+      const qt = query(
+        tasksRef, 
+        where("user_id", "==", user.uid), 
+        where("is_deleted", "==", false),
+        where("due_date", ">=", start),
+        where("due_date", "<=", end)
+      );
+      const snapshotTasks = await getDocs(qt);
+      setTasks(snapshotTasks.docs.map(doc => ({ id: doc.id, ...doc.data() } as Task)));
+
+      // Fetch reminders
+      const remindersRef = collection(db, "reminders");
+      const qr = query(
+        remindersRef, 
+        where("user_id", "==", user.uid), 
+        where("is_active", "==", true),
+        where("remind_at", ">=", start),
+        where("remind_at", "<=", end)
+      );
+      const snapshotReminders = await getDocs(qr);
+      setReminders(snapshotReminders.docs.map(doc => ({ id: doc.id, ...doc.data() } as Reminder)));
     };
     fetch();
-  }, [currentMonth]);
+  }, [currentMonth, user]);
 
   const days = useMemo(() => {
     const monthStart = startOfMonth(currentMonth);

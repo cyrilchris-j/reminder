@@ -1,7 +1,7 @@
+"use client";
 // ============================================
 // MindFlow — Voice Input Hook (Web Speech API)
 // ============================================
-"use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
 
@@ -31,13 +31,13 @@ export function useVoiceInput(): UseVoiceInputReturn {
     const SpeechRecognitionClass = win.SpeechRecognition || win.webkitSpeechRecognition;
 
     if (SpeechRecognitionClass) {
-      setIsSupported(true);
+      setIsSupported(true); // eslint-disable-line react-hooks/set-state-in-effect
       const recognition = new SpeechRecognitionClass();
       recognition.continuous = true;
       recognition.interimResults = true;
       recognition.lang = "en-US";
 
-      recognition.onresult = (event: any) => {
+      recognition.onresult = (event: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
         let finalTranscript = "";
         let interimTranscript = "";
 
@@ -53,7 +53,7 @@ export function useVoiceInput(): UseVoiceInputReturn {
         setTranscript((prev) => prev + finalTranscript + interimTranscript);
       };
 
-      recognition.onerror = (event: any) => {
+      recognition.onerror = (event: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
         setError(`Speech recognition error: ${event.error}`);
         setIsListening(false);
       };

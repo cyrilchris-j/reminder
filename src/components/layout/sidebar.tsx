@@ -1,8 +1,8 @@
+"use client";
 // ============================================
 // MindFlow — Sidebar Component
 // Collapsible navigation with sections & user menu
 // ============================================
-"use client";
 
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
@@ -13,7 +13,6 @@ import {
   ChevronLeft, ChevronRight, Brain, Plus, User,
 } from "lucide-react";
 import { useTheme } from "next-themes";
-import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
@@ -22,7 +21,8 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAppStore } from "@/stores/app-store";
-import { createClient } from "@/lib/supabase/client";
+import { auth } from "@/lib/firebase/client";
+import { signOut } from "firebase/auth";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -51,8 +51,7 @@ export function Sidebar({ user }: SidebarProps) {
   const { sidebarCollapsed, toggleSidebarCollapsed } = useAppStore();
 
   const handleLogout = async () => {
-    const supabase = createClient();
-    await supabase.auth.signOut();
+    await signOut(auth);
     toast.success("Logged out successfully");
     router.push("/login");
     router.refresh();

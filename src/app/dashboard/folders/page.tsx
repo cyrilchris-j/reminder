@@ -1,12 +1,12 @@
+"use client";
 // ============================================
 // MindFlow — Folders Page
 // ============================================
-"use client";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { FolderOpen, Plus, Trash2, Edit2, MoreHorizontal } from "lucide-react";
+import { FolderOpen, Plus, Trash2, MoreHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -14,14 +14,17 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from "@/components/ui/label";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
-import { createClient } from "@/lib/supabase/client";
 import { FOLDER_COLORS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import type { Folder } from "@/types/database";
 import { toast } from "sonner";
+import { db, auth } from "@/lib/firebase/client";
+import { collection, query, where, getDocs, doc, addDoc, deleteDoc, orderBy } from "firebase/firestore";
+import { useAuthState } from "react-firebase-hooks/auth";
 
 export default function FoldersPage() {
   const router = useRouter();
+  const [user] = useAuthState(auth);
   const [folders, setFolders] = useState<Folder[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -29,30 +32,54 @@ export default function FoldersPage() {
   const [color, setColor] = useState<string>(FOLDER_COLORS[0]);
 
   const fetchFolders = async () => {
-    const supabase = createClient();
-    const { data } = await supabase.from("folders").select("*").order("sort_order");
-    setFolders((data as Folder[]) || []);
-    setLoading(false);
+    if (!user) return;
+    try {
+      const foldersRef = collection(db, "folders");
+      const q = query(
+        foldersRef, 
+        where("user_id", "==", user.uid),
+        orderBy("created_at", "desc")
+      );
+      const snapshot = await getDocs(q);
+      setFolders(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Folder)));
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  useEffect(() => { fetchFolders(); }, []);
+  useEffect(() => { 
+    if (user) fetchFolders(); 
+  }, [user]);
 
   const handleCreate = async () => {
     if (!name.trim()) { toast.error("Name required"); return; }
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-    await supabase.from("folders").insert({ user_id: user.id, name: name.trim(), color });
-    setName(""); setDialogOpen(false);
-    toast.success("Folder created!");
-    fetchFolders();
+    try {
+      await addDoc(collection(db, "folders"), {
+        user_id: user.uid,
+        name: name.trim(),
+        color,
+        created_at: new Date().toISOString(),
+        sort_order: folders.length
+      });
+      setName(""); setDialogOpen(false);
+      toast.success("Folder created!");
+      fetchFolders();
+    } catch (error) {
+      toast.error("Failed to create folder");
+    }
   };
 
   const deleteFolder = async (id: string) => {
-    const supabase = createClient();
-    await supabase.from("folders").delete().eq("id", id);
-    toast.success("Folder deleted");
-    fetchFolders();
+    try {
+      await deleteDoc(doc(db, "folders", id));
+      toast.success("Folder deleted");
+      fetchFolders();
+    } catch (error) {
+      toast.error("Failed to delete folder");
+    }
   };
 
   if (loading) return (
@@ -70,9 +97,7 @@ export default function FoldersPage() {
           <p className="text-sm text-muted-foreground">{folders.length} folder{folders.length !== 1 && "s"}</p>
         </div>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger >
-            <Button className="gradient-primary border-0 text-white shadow-md shadow-primary/20"><Plus className="mr-2 h-4 w-4" />New Folder</Button>
-          </DialogTrigger>
+          <DialogTrigger render={<Button className="gradient-primary border-0 text-white shadow-md shadow-primary/20"><Plus className="mr-2 h-4 w-4" />New Folder</Button>} />
           <DialogContent>
             <DialogHeader><DialogTitle>Create Folder</DialogTitle></DialogHeader>
             <div className="space-y-4 pt-2">
@@ -107,9 +132,7 @@ export default function FoldersPage() {
                       <FolderOpen className="h-6 w-6" style={{ color: folder.color }} />
                     </div>
                     <DropdownMenu>
-                      <DropdownMenuTrigger  onClick={e => e.stopPropagation()}>
-                        <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100"><MoreHorizontal className="h-4 w-4" /></Button>
-                      </DropdownMenuTrigger>
+                      <DropdownMenuTrigger render={<Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100"><MoreHorizontal className="h-4 w-4" /></Button>} onClick={e => e.stopPropagation()} />
                       <DropdownMenuContent onClick={e => e.stopPropagation()}>
                         <DropdownMenuItem onClick={() => deleteFolder(folder.id)} className="text-destructive"><Trash2 className="mr-2 h-4 w-4" />Delete</DropdownMenuItem>
                       </DropdownMenuContent>

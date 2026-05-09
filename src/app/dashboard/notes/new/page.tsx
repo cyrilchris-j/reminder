@@ -1,7 +1,10 @@
+"use client";
+
+import { db, auth } from "@/lib/firebase/client";
+import { collection, addDoc } from "firebase/firestore";
 // ============================================
 // MindFlow — New Note Page
 // ============================================
-"use client";
 
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
@@ -10,7 +13,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { NoteEditor } from "@/components/notes/note-editor";
-import { createClient } from "@/lib/supabase/client";
 import { NOTE_COLORS } from "@/lib/constants";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -49,26 +51,31 @@ export default function NewNotePage() {
     }
     setSaving(true);
     try {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { toast.error("Not authenticated"); return; }
-
-      const { data: note, error } = await supabase
-        .from("notes")
-        .insert({ user_id: user.id, title: title || "Untitled", content, plain_text: plainText, color })
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      // Insert tags
-      if (tags.length > 0 && note) {
-        await supabase.from("note_tags").insert(tags.map(tag => ({ note_id: note.id, tag })));
+      const user = auth.currentUser;
+      if (!user) { 
+        toast.error("Not authenticated"); 
+        setSaving(false);
+        return; 
       }
 
+      const docRef = await addDoc(collection(db, "notes"), {
+        user_id: user.uid,
+        title: title || "Untitled",
+        content,
+        plain_text: plainText,
+        color,
+        tags,
+        is_pinned: false,
+        is_archived: false,
+        is_deleted: false,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      });
+
       toast.success("Note saved!");
-      router.push(`/dashboard/notes/${note.id}`);
-    } catch {
+      router.push(`/dashboard/notes/${docRef.id}`);
+    } catch (error) {
+      console.error(error);
       toast.error("Failed to save note");
     } finally {
       setSaving(false);

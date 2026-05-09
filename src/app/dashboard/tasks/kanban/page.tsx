@@ -1,21 +1,23 @@
+"use client";
 // ============================================
 // MindFlow — Kanban Board View for Tasks
 // ============================================
-"use client";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { ArrowLeft, CheckCircle2, Circle, Clock, Plus } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Circle, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import type { Task } from "@/types/database";
 import { format, isPast, isToday } from "date-fns";
 import { toast } from "sonner";
+import { db, auth } from "@/lib/firebase/client";
+import { collection, query, where, getDocs, doc, updateDoc, orderBy } from "firebase/firestore";
+import { useAuthState } from "react-firebase-hooks/auth";
 
 const columns = [
   { id: "todo", label: "To Do", color: "text-blue-500", bg: "bg-blue-500/10" },
@@ -25,37 +27,52 @@ const columns = [
 
 export default function KanbanPage() {
   const router = useRouter();
+  const [user] = useAuthState(auth);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchTasks = async () => {
-    const supabase = createClient();
-    const { data } = await supabase
-      .from("tasks")
-      .select("*")
-      .eq("is_deleted", false)
-      .is("parent_id", null)
-      .order("sort_order", { ascending: true });
-    setTasks((data as Task[]) || []);
-    setLoading(false);
+    if (!user) return;
+    try {
+      const tasksRef = collection(db, "tasks");
+      const q = query(
+        tasksRef, 
+        where("user_id", "==", user.uid),
+        where("is_deleted", "==", false),
+        orderBy("created_at", "desc")
+      );
+      const snapshot = await getDocs(q);
+      const tasksData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Task));
+      setTasks(tasksData);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  useEffect(() => { fetchTasks(); }, []);
+  useEffect(() => { 
+    if (user) fetchTasks(); 
+  }, [user]);
 
   const getColumnTasks = (colId: string) => {
     if (colId === "done") return tasks.filter(t => t.is_completed);
     if (colId === "inprogress") return tasks.filter(t => !t.is_completed && t.due_date && isToday(new Date(t.due_date)));
-    // todo: not completed and not in-progress
     return tasks.filter(t => !t.is_completed && (!t.due_date || !isToday(new Date(t.due_date))));
   };
 
   const toggleComplete = async (task: Task) => {
-    const supabase = createClient();
-    await supabase.from("tasks").update({
-      is_completed: !task.is_completed,
-      completed_at: !task.is_completed ? new Date().toISOString() : null,
-    }).eq("id", task.id);
-    fetchTasks();
+    try {
+      const taskRef = doc(db, "tasks", task.id);
+      await updateDoc(taskRef, {
+        is_completed: !task.is_completed,
+        completed_at: !task.is_completed ? new Date().toISOString() : null,
+        updated_at: new Date().toISOString()
+      });
+      fetchTasks();
+    } catch (error) {
+      toast.error("Failed to update task");
+    }
   };
 
   if (loading) return (

@@ -1,7 +1,11 @@
+"use client";
+
+import { db, auth } from "@/lib/firebase/client";
+import { getDoc, doc, setDoc, updateDoc } from "firebase/firestore";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 // ============================================
 // MindFlow — Profile Page
 // ============================================
-"use client";
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
@@ -11,11 +15,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Separator } from "@/components/ui/separator";
 import { useTheme } from "next-themes";
-import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { updateProfile } from "firebase/auth";
 
 export default function ProfilePage() {
   const { theme, setTheme } = useTheme();
@@ -27,14 +30,18 @@ export default function ProfilePage() {
 
   useEffect(() => {
     const fetchProfile = async () => {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = auth.currentUser;
       if (!user) return;
       setEmail(user.email || "");
-      const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).single();
-      if (profile) {
-        setFullName(profile.full_name || user.user_metadata?.full_name || "");
-        setAvatarUrl(profile.avatar_url || "");
+      setFullName(user.displayName || "");
+      setAvatarUrl(user.photoURL || "");
+
+      const docRef = doc(db, "profiles", user.uid);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        const profile = docSnap.data();
+        setFullName(profile.full_name || user.displayName || "");
+        setAvatarUrl(profile.avatar_url || user.photoURL || "");
       }
     };
     fetchProfile();
@@ -42,12 +49,31 @@ export default function ProfilePage() {
 
   const handleSave = async () => {
     setSaving(true);
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = auth.currentUser;
     if (!user) return;
-    await supabase.from("profiles").upsert({ id: user.id, full_name: fullName, avatar_url: avatarUrl, theme: theme || "system" });
-    toast.success("Profile updated!");
-    setSaving(false);
+
+    try {
+      // Update Firebase Auth profile
+      await updateProfile(user, {
+        displayName: fullName,
+        photoURL: avatarUrl
+      });
+
+      // Update Firestore profile
+      await setDoc(doc(db, "profiles", user.uid), {
+        full_name: fullName,
+        avatar_url: avatarUrl,
+        theme: theme || "system",
+        updated_at: new Date().toISOString()
+      }, { merge: true });
+
+      toast.success("Profile updated!");
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to update profile");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -55,17 +81,20 @@ export default function ProfilePage() {
     if (!file) return;
     setUploading(true);
     try {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = auth.currentUser;
       if (!user) return;
+
+      const storage = getStorage();
       const ext = file.name.split(".").pop();
-      const path = `avatars/${user.id}.${ext}`;
-      const { error } = await supabase.storage.from("avatars").upload(path, file, { upsert: true });
-      if (error) throw error;
-      const { data: { publicUrl } } = supabase.storage.from("avatars").getPublicUrl(path);
+      const storageRef = ref(storage, `avatars/${user.uid}.${ext}`);
+      
+      await uploadBytes(storageRef, file);
+      const publicUrl = await getDownloadURL(storageRef);
+      
       setAvatarUrl(publicUrl);
       toast.success("Avatar uploaded!");
-    } catch {
+    } catch (error) {
+      console.error(error);
       toast.error("Upload failed");
     } finally {
       setUploading(false);

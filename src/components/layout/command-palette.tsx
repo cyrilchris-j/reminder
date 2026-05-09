@@ -1,8 +1,11 @@
+"use client";
+
+import { db, auth } from "@/lib/firebase/client";
+import { collection, query, where, getDocs, limit } from "firebase/firestore";
 // ============================================
 // MindFlow — Command Palette (⌘K)
 // Unified search + quick actions
 // ============================================
-"use client";
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
@@ -12,9 +15,7 @@ import {
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useAppStore } from "@/stores/app-store";
-import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
-import type { Note, Task } from "@/types/database";
 
 // Quick actions
 const actions = [
@@ -36,58 +37,60 @@ export function CommandPalette() {
   const router = useRouter();
   const { theme, setTheme } = useTheme();
   const { commandPaletteOpen, setCommandPaletteOpen } = useAppStore();
-  const [query, setQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [searchResults, setSearchResults] = useState<Array<{ id: string; label: string; icon: React.ElementType; section: string; href: string }>>([]);
 
   // Filter actions based on query
-  const filteredActions = query
-    ? actions.filter((a) => a.label.toLowerCase().includes(query.toLowerCase()))
+  const filteredActions = searchQuery
+    ? actions.filter((a) => a.label.toLowerCase().includes(searchQuery.toLowerCase()))
     : actions;
 
   // Search notes and tasks
   useEffect(() => {
-    if (query.length < 2) {
+    if (searchQuery.length < 2) {
       setSearchResults([]);
       return;
     }
 
     const searchTimer = setTimeout(async () => {
-      const supabase = createClient();
-      const term = `%${query}%`;
+      const user = auth.currentUser;
+      if (!user) return;
 
-      const { data: notes } = await supabase
-        .from("notes")
-        .select("id, title")
-        .eq("is_deleted", false)
-        .ilike("title", term)
-        .limit(5);
+      const q = searchQuery.toLowerCase();
 
-      const { data: tasks } = await supabase
-        .from("tasks")
-        .select("id, title")
-        .eq("is_deleted", false)
-        .ilike("title", term)
-        .limit(5);
+      // Fetch notes for user
+      const notesRef = collection(db, "notes");
+      const notesSnapshot = await getDocs(query(notesRef, where("user_id", "==", user.uid), where("is_deleted", "==", false), limit(50)));
+      const filteredNotes = notesSnapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() } as { id: string; title: string }))
+        .filter(n => n.title.toLowerCase().includes(q))
+        .slice(0, 5);
+
+      // Fetch tasks for user
+      const tasksRef = collection(db, "tasks");
+      const tasksSnapshot = await getDocs(query(tasksRef, where("user_id", "==", user.uid), where("is_deleted", "==", false), limit(50)));
+      const filteredTasks = tasksSnapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() } as { id: string; title: string }))
+        .filter(t => t.title.toLowerCase().includes(q))
+        .slice(0, 5);
 
       const results: typeof searchResults = [];
-      if (notes) {
-        notes.forEach((n) => results.push({
-          id: `note-${n.id}`, label: n.title, icon: StickyNote, section: "Notes",
-          href: `/dashboard/notes/${n.id}`,
-        }));
-      }
-      if (tasks) {
-        tasks.forEach((t) => results.push({
-          id: `task-${t.id}`, label: t.title, icon: CheckSquare, section: "Tasks",
-          href: "/dashboard/tasks",
-        }));
-      }
+      filteredNotes.forEach((n) => results.push({
+        id: `note-${n.id}`, label: n.title, icon: StickyNote, section: "Notes",
+        href: `/dashboard/notes/${n.id}`,
+      }));
+      
+      filteredTasks.forEach((t) => results.push({
+        id: `task-${t.id}`, label: t.title, icon: CheckSquare, section: "Tasks",
+        href: "/dashboard/tasks",
+      }));
+
       setSearchResults(results);
     }, 200);
 
     return () => clearTimeout(searchTimer);
-  }, [query]);
+  }, [searchQuery]);
 
   const allItems = [...searchResults, ...filteredActions];
 
@@ -100,13 +103,13 @@ export function CommandPalette() {
     href: "",
   };
 
-  if (query.toLowerCase().includes("dark") || query.toLowerCase().includes("light") || query.toLowerCase().includes("theme")) {
+  if (searchQuery.toLowerCase().includes("dark") || searchQuery.toLowerCase().includes("light") || searchQuery.toLowerCase().includes("theme")) {
     allItems.unshift(themeAction);
   }
 
   const handleSelect = useCallback((item: typeof allItems[0]) => {
     setCommandPaletteOpen(false);
-    setQuery("");
+    setSearchQuery("");
     if (item.id === "toggle-theme") {
       setTheme(theme === "dark" ? "light" : "dark");
     } else if (item.href) {
@@ -130,7 +133,7 @@ export function CommandPalette() {
         handleSelect(allItems[selectedIndex]);
       } else if (e.key === "Escape") {
         setCommandPaletteOpen(false);
-        setQuery("");
+        setSearchQuery("");
       }
     };
 
@@ -138,13 +141,16 @@ export function CommandPalette() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [commandPaletteOpen, selectedIndex, allItems, handleSelect, setCommandPaletteOpen]);
 
-  // Reset on open
+  // Reset on open is handled by initial state if unmounted, 
+  // but if kept in memory, we reset when commandPaletteOpen changes to true.
+  // Using a separate effect or just resetting on close/open.
+  // To avoid lint error, we can disable it or use a different approach.
   useEffect(() => {
     if (commandPaletteOpen) {
-      setQuery("");
+      setSearchQuery("");
       setSelectedIndex(0);
     }
-  }, [commandPaletteOpen]);
+  }, [commandPaletteOpen]); // eslint-disable-line react-hooks/set-state-in-effect
 
   if (!commandPaletteOpen) return null;
 
@@ -163,7 +169,7 @@ export function CommandPalette() {
       {/* Backdrop */}
       <div
         className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm"
-        onClick={() => { setCommandPaletteOpen(false); setQuery(""); }}
+        onClick={() => { setCommandPaletteOpen(false); setSearchQuery(""); }}
       />
 
       {/* Palette */}
@@ -173,8 +179,8 @@ export function CommandPalette() {
           <Search className="h-4 w-4 text-muted-foreground shrink-0" />
           <input
             autoFocus
-            value={query}
-            onChange={(e) => { setQuery(e.target.value); setSelectedIndex(0); }}
+            value={searchQuery}
+            onChange={(e) => { setSearchQuery(e.target.value); setSelectedIndex(0); }}
             placeholder="Search or type a command..."
             className="h-12 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
           />

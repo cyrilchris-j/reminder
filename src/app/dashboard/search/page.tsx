@@ -1,7 +1,10 @@
+"use client";
+
+import { db, auth } from "@/lib/firebase/client";
+import { collection, query, where, getDocs, orderBy } from "firebase/firestore";
 // ============================================
 // MindFlow — Search Page
 // ============================================
-"use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -9,28 +12,47 @@ import { Search, StickyNote, CheckSquare, ArrowRight } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { createClient } from "@/lib/supabase/client";
 import type { Note, Task } from "@/types/database";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
 export default function SearchPage() {
   const router = useRouter();
-  const [query, setQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [notes, setNotes] = useState<Note[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [searched, setSearched] = useState(false);
 
   const handleSearch = async (q: string) => {
-    setQuery(q);
+    setSearchQuery(q);
     if (q.length < 2) { setNotes([]); setTasks([]); setSearched(false); return; }
     setSearched(true);
-    const supabase = createClient();
-    const term = `%${q}%`;
-    const { data: n } = await supabase.from("notes").select("*").eq("is_deleted", false).or(`title.ilike.${term},plain_text.ilike.${term}`).order("updated_at", { ascending: false }).limit(20);
-    const { data: t } = await supabase.from("tasks").select("*").eq("is_deleted", false).or(`title.ilike.${term},description.ilike.${term}`).order("created_at", { ascending: false }).limit(20);
-    setNotes((n as Note[]) || []);
-    setTasks((t as Task[]) || []);
+    
+    const user = auth.currentUser;
+    if (!user) return;
+
+    // Firestore doesn't support full-text search or ilike easily.
+    // For this app, we'll fetch all non-deleted items and filter client-side.
+    // In a real large-scale app, we'd use Algolia or ElasticSearch.
+
+    const notesRef = collection(db, "notes");
+    const notesSnapshot = await getDocs(query(notesRef, where("user_id", "==", user.uid), where("is_deleted", "==", false)));
+    const allNotes = notesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Note[];
+    const filteredNotes = allNotes.filter(n => 
+      n.title.toLowerCase().includes(q.toLowerCase()) || 
+      n.plain_text?.toLowerCase().includes(q.toLowerCase())
+    ).slice(0, 20);
+
+    const tasksRef = collection(db, "tasks");
+    const tasksSnapshot = await getDocs(query(tasksRef, where("user_id", "==", user.uid), where("is_deleted", "==", false)));
+    const allTasks = tasksSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Task[];
+    const filteredTasks = allTasks.filter(t => 
+      t.title.toLowerCase().includes(q.toLowerCase()) || 
+      t.description?.toLowerCase().includes(q.toLowerCase())
+    ).slice(0, 20);
+
+    setNotes(filteredNotes);
+    setTasks(filteredTasks);
   };
 
   return (
@@ -38,7 +60,7 @@ export default function SearchPage() {
       <h1 className="text-2xl font-bold tracking-tight">Search</h1>
       <div className="relative">
         <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
-        <Input value={query} onChange={e => handleSearch(e.target.value)} placeholder="Search notes, tasks, and more..."
+        <Input value={searchQuery} onChange={e => handleSearch(e.target.value)} placeholder="Search notes, tasks, and more..."
           className="h-12 pl-12 text-base rounded-xl" autoFocus />
       </div>
 
@@ -88,7 +110,7 @@ export default function SearchPage() {
             </div>
           )}
           {notes.length === 0 && tasks.length === 0 && (
-            <div className="flex flex-col items-center py-16"><p className="text-muted-foreground">No results for &ldquo;{query}&rdquo;</p></div>
+            <div className="flex flex-col items-center py-16"><p className="text-muted-foreground">No results for &ldquo;{searchQuery}&rdquo;</p></div>
           )}
         </div>
       )}
