@@ -1,7 +1,9 @@
 import NoteContent from "./note-content";
 
+export const dynamic = 'force-static';
+
 export function generateStaticParams() {
-  return [];
+  return [{ id: 'default' }];
 }
 
 export default function Page() {
